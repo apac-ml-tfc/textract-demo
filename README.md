@@ -16,7 +16,7 @@ Enhancing OCR technology for real-life use cases.
 
 ## This module has total four components
   - Web UI component to upload the receipt/document to S3
-  - ![alt text] (https://github.com/apac-ml-tfc/textract-demo/blob/master/1.img-pre-processing/README.md "Preprocessing part to identify this image as "good" or "bad"")
+  - ![Preprocessing part to identify this image as "good" or "bad] (https://github.com/apac-ml-tfc/textract-demo/blob/master/1.img-pre-processing/README.md)
   - Textract for OCR
   - Human-In-The-Loop (A2I) for human intervention in case of bad images
 
