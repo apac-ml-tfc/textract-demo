@@ -9,10 +9,9 @@
     1. <strong>flowDefinitionArn</strong> is refering to Human loop loop in A2i
     2. <strong>avg_confthreshold</strong> is average ocr post processing threshold that you can define.
     3. <strong>preprocessingFunction</strong> is Preprocessing function to identifiying whether image quality is good, or bad.
-    4. For the completed demo purposed ocr post processing function Execution role should include:
+    4. You may need follow IAM policy in order for OCR post processing function Execution role to work:
         - AWSLambdaFullAccess, AmazonS3FullAccess, CloudWatchFullAccess, AmazonDynamoDBFullAccess, AmazonTextractFullAccess, ComprehendFullAccess, AWSIoTFullAccess, AmazonAugmentedAllHumanLoopFullAccess
-
-        <h4>** It's generally not recommended for production usage, You can use IAM access analyzer to check.</h4>
+    <h4> *** In Production, We are highly recommended to apply least privilege principal for IAM role</h4>
 ---
 ### Step to follow to deploy OCR Post-Processing
  1. Create lambda function 
