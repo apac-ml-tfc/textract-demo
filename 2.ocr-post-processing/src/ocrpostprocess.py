@@ -6,6 +6,7 @@ import time
 import os
 import uuid
 import pprint
+import urllib
 from trp import Document
 
 # Define clients
@@ -23,13 +24,14 @@ avg_confthreshold = float(avg_confthreshold)
 def lambda_handler(event, context):
 # Extract payload event
     BUCKET = event['Records'][0]['s3']['bucket']['name']
-    documentName = event['Records'][0]['s3']['object']['key']
+    #documentName = event['Records'][0]['s3']['object']['key']
+    documentName = urllib.parse.unquote_plus(event['Records'][0]['s3']['object']['key'], encoding='utf-8')
     cognitoid = documentName.rsplit('/', 1)[0]
-    #print('cognitoid:', cognitoid, 'bucket:', BUCKET, 'key:', documentName)
+    print('cognitoid:', cognitoid, 'bucket:', BUCKET, 'key:', documentName)
     
     # use the cognitoid as topic in your actual code
-    #topic = cognitoid 
-    topic = 'private/us-east-1:073c31fb-efea-434d-ac4c-caccbce7d42a'
+    topic = cognitoid 
+    #topic = 'private/us-east-1:073c31fb-efea-434d-ac4c-caccbce7d42a'
   
     payload_img={
         "queryStringParameters":{
@@ -92,7 +94,7 @@ def lambda_handler(event, context):
                 fields = page.form.searchFieldsByKey(key)
                 for field in fields:
                     # Find Total & Amount logic
-                    if field.key.text.lower().find("total") >= 0 or field.key.text.lower().find("amount") >= 0:
+                    if (field.key.text.lower().find("total") >= 0 or field.key.text.lower().find("amount") >= 0) and field.value is not None:
                         array_total.append([field.value.text,field.key.confidence])
                         
                         
@@ -149,7 +151,7 @@ def lambda_handler(event, context):
                 "vendor": vendor_name,
                 "total" : "Need human review the total"
                 }
-            #print(inputContent)
+            print(inputContent)
             
             iotmessage={
                 "id" : os.environ['userid'] ,
@@ -164,7 +166,6 @@ def lambda_handler(event, context):
             }
             iotpayload=json.dumps(iotmessage)
             response_iot=iot.publish(topic=topic, qos=1, payload=iotpayload)
-            print("Publish message to topic channel {} Payload: {}".format(topic,iotpayload))
             
             
             uniqueId = str(uuid.uuid4())
@@ -183,7 +184,8 @@ def lambda_handler(event, context):
                             ]
                     }
                 )
-            print("Calling human loop flowDefinitionArn: {}".format(flowDefinitionArn))
+            print("Calling human loop ARN {}".format(flowDefinitionArn))
+            
             dynamodb = boto3.resource('dynamodb')
             table = dynamodb.Table('image-tracking')
             dynamoresponse  = table.put_item(
@@ -211,7 +213,7 @@ def lambda_handler(event, context):
                     "vendor": vendor_name,
                     "total" : array_total[0][0]
                 }
-                #print(inputContent)
+                print(inputContent)
                 
                 
                 iotmessage={
@@ -227,7 +229,6 @@ def lambda_handler(event, context):
                 }
                 iotpayload=json.dumps(iotmessage)
                 response_iot=iot.publish(topic=topic, qos=1, payload=iotpayload)
-                print("Publish message to topic channel {} Payload: {}".format(topic,iotpayload))
                 
                 
                 uniqueId = str(uuid.uuid4())
@@ -245,7 +246,7 @@ def lambda_handler(event, context):
                             ]
                     }
                 )
-                print("Calling human loop flowDefinitionArn: {}".format(flowDefinitionArn))
+                print("Calling human loop ARN {}".format(flowDefinitionArn))
                 
                 dynamodb = boto3.resource('dynamodb')
                 table = dynamodb.Table('image-tracking')
@@ -285,7 +286,6 @@ def lambda_handler(event, context):
                 }
                 iotpayload=json.dumps(iotmessage)
                 response_iot=iot.publish(topic=topic, qos=1, payload=iotpayload)
-                print("Publish message to topic channel {} Payload: {}".format(topic,iotpayload))
                 
                 
                 dynamodb = boto3.resource('dynamodb')
@@ -304,13 +304,13 @@ def lambda_handler(event, context):
                     }
                 }
                 )
-                #print(inputContent)
+                print(inputContent)
     else:
         print("Image quality is low, please re-take your picture again...") 
         inputContent="Image quality is low, please re-take your picture again..."
     
     return {
-     'full_payload' : json.dumps(iotpayload)
+     'full_payload' : json.dumps(inputContent)
     }
 
     
