@@ -10,8 +10,7 @@ Step to follow for Image Pre-Processing
 ---
 ### Amazon SageMaker Ground Truth Labelling Job
 Pre-requisites: Load the Training Image data set to the S3 bucket.
-
-1.Go to the AWS console Amazon SageMaker-->GroundTruth
+1. Go to the AWS console Amazon SageMaker-->GroundTruth
 2. Naviagte to the Labeling Workforces menu. Create a "Private" labelling workforce.  private team with the team members email id. This shall sent an invitation email. Accept the email invitation
 3. Navigate to the Labeling jobs and create a new labelling Job.
 4. Login to the Portal
