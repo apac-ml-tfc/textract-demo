@@ -8,7 +8,8 @@ Enhancing OCR technology for real-life use cases.
 
  
 # Solution Architecture 
-<br>
+
+<br>![alt text ](https://github.com/apac-ml-tfc/textract-demo/blob/master/smartocr-solution-architecture.png "Smart OCR Demo Architecture")
 
 
 
