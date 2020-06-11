@@ -12,6 +12,7 @@ Enhancing OCR technology for real-life use cases.
 ### AWS Services Used
 * [AWS Groundtruth] - Manual labelling of training data set
 * [AWS Rekognition CustomLabel] - ML For used for Image classification(good/bad)
+* [AWS Textract] - AI developer service to analyse the document and extract text
 
 ### Installation
 
