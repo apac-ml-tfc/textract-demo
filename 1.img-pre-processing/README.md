@@ -9,14 +9,15 @@ The pre-processing step also incorporates an image enhancement algorithms which 
 
 <br>![alt text ](https://github.com/apac-ml-tfc/textract-demo/blob/master/1.img-pre-processing/img-preprocessing-flow.png "Service Flow") 
 
-Step to follow for Image Pre-Processing
+<br>![alt text ](https://github.com/apac-ml-tfc/textract-demo/tree/master/1.img-pre-processing/groundtruth-labelling "Step to follow for Image Pre-Processing")
  1. Prepare the training data set
  2. Create a Ground Truth Labelling Job and manually classify the image
  3. Link Ground Truth data set to Amazon Rekognition Custom Labels
  4. Create the ML Model on Amazon Rekognition Custom Labels by using Ground Truth data set
 
 ---
-### Amazon SageMaker Ground Truth Labelling Job
+
+<br>![alt text ](https://github.com/apac-ml-tfc/textract-demo/tree/master/1.img-pre-processing/rekognition-ml-model "Amazon SageMaker Ground Truth Labelling Job")
 Pre-requisites: Load the Training Image data set to the S3 bucket.
 1. Go to the AWS console Amazon SageMaker-->GroundTruth
 2. Naviagte to the Labeling Workforces menu. Create a "Private" labelling workforce.  private team with the team members email id. This shall sent an invitation email. Accept the email invitation
