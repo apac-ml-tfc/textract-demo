@@ -18,7 +18,7 @@
 ---
 ### Step to follow to deploy OCR Post-Processing
  1. Create lambda function 
- 2. Deploy file trp.py
- 3. Deploy file ocrpostprocess.py
+ 2. Deploy file in  src/trp.py
+ 3. Deploy file in src/ocrpostprocess.py
  ---
 
