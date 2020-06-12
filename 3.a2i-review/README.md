@@ -2,7 +2,12 @@
 
 ## 1. Set up A2I
 
+
+
 Go through the steps in the notebook a2i_humanloop.ipynb 
+
++ this notebook is triggered by a lambda function which has done postprocess works after Textract API. For A2I work directly within your API calls to Textract's Analyze Document API, you may refer to [notebook here](https://github.com/aws-samples/amazon-a2i-sample-jupyter-notebooks/blob/master/Amazon%20Augmented%20AI%20(A2I)%20and%20Textract%20AnalyzeDocument.ipynb)
+
 
 ## 2. Preparing CDK in Cloud9
 
