@@ -1,6 +1,9 @@
 # Smart OCR : OCR Post-Processing
 ## HOW TO: Using AWS Lambda, Amazon Textract, Amazon Comprehend to extract business attributes from bill/voice
 
+#OCR and A2I flow
+[Service Flow](https://github.com/apac-ml-tfc/textract-demo/blob/master/2.ocr-post-processing/ocr-processing-and-a2i.png) 
+
 ### Pre-requisites for AWS Lambda python code
 - Lambda python runtime is version 3.8
 - Lambda function handler is `lambda_function.lambda_handler`
