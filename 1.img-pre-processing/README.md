@@ -2,7 +2,7 @@
 ## HOW TO: Using Amazon SageMaker Ground Truth and Amazon Rekognition Custom Labels
 
 #Preprocessing flow
-[Service Flow](https://github.com/apac-ml-tfc/textract-demo/blob/master/1.img-pre-processing/img-preprocessing-flow.png) 
+<br>![alt text ](https://github.com/apac-ml-tfc/textract-demo/blob/master/1.img-pre-processing/img-preprocessing-flow.png "Service Flow") 
 
 Step to follow for Image Pre-Processing
  1. Prepare the training data set
