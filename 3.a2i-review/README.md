@@ -49,9 +49,9 @@ This will start the TypeScript compiler (tsc) in “watch” mode, which will mo
 
 ## 3. Create the Human Post Processing lambba
 
-Open up lib/cdklambda-stack.ts. This is where the meat of our application is. The project created by cdk init sample-app includes an SQS queue, and an SNS topic. We’re not going to use them in our project, so remove them from your the CdkWorkshopStack constructor.
+Open up lib/cdklambda-stack.ts. This is where the meat of our application is.
 
-Open lib/ecs-workshop-stack.ts and clean it up. Eventually it should look like this:
+cdklambda-stack.ts looks like this
 
 ```ts
 import * as cdk from '@aws-cdk/core';
