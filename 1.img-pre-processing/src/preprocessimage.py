@@ -1,15 +1,25 @@
+"""
+This python code is used for Image Pre-Processing as part of OCR project (Unicorn Gym 2020).
+Version: 4
+Event Handler: lambda_handler
+
+Input/Output Specifications:
+Input:  dict - {'queryStringParameters': {'bucket': <s3_bucket:str>, 'image': <image_location:str>}}
+Output: dict - {'statusCode': <error_code:int>, 'body': <body_str:str>}
+"""
+
 import json
 import boto3
 import os
 from botocore.exceptions import ClientError
 
 # define rekognition client and environment variables
-'''
+"""
 "model_arn" to the ARN of the model that you want to start.
 "project_arn" to the ARN of the project that contains the model that you want to use.
 "version_name" to the name of the model that you want to start.
 "min_inference_units" to the number of inference units that you want to use.
-'''
+"""
 client = boto3.client('rekognition')
 model_arn = os.environ['REKOGNITION_MODEL_ARN']
 # TODO: hardcoded
@@ -17,12 +27,12 @@ project_arn='arn:aws:rekognition:us-east-1:077546553367'
 version_name='unicorn-gym-custom-label.2020-06-08T13.55.38'
 min_inference_units=1
 
-# define lambda client and environment variables
-lambda_client = boto3.client('lambda')
-lambda_arn = os.environ['LAMBDA_ENHANCED_IMAGE_ARN']
-
 # method for enhancement image
 def enhancedment_image(labels, bucket, photo):
+    # define lambda client and environment variables
+    lambda_client = boto3.client('lambda')
+    lambda_arn = os.environ['LAMBDA_ENHANCED_IMAGE_ARN']
+    
     label_name = labels[0]['Name']
     confidence_score = labels[0]['Confidence']
     if label_name == 'bad':
@@ -67,6 +77,8 @@ def lambda_handler(event, context):
         # this is expected exception, let it pass.
         if ce.response['Error']['Code'] == 'ResourceInUseException':
             print("The model is already running: " + model_arn)
+        else:
+            return return_result_format(500, "Unknown exception: {}".format(ce))
     except Exception as e:
         return return_result_format(500, "Unknown exception: {}".format(e))
 
@@ -81,8 +93,11 @@ def lambda_handler(event, context):
     except ClientError as ce:
         if ce.response['Error']['Code'] == 'InvalidS3ObjectException':
             return return_result_format(400, 'Invalid S3 object location \'s3://{}/{}\', please check your value of payload.'.format(bucket,photo))
+        else:
+            return return_result_format(500, "Unknown exception: {}".format(ce))
     except Exception as e:
         return return_result_format(400, 'Input error {}, please check your value of payload.'.format(e))
     
+    print(labels)
     # return good result
     return return_result_format(200, json.dumps(labels))
