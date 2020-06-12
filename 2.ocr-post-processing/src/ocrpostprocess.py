@@ -95,7 +95,12 @@ def lambda_handler(event, context):
                 for field in fields:
                     # Find Total & Amount logic
                     if (field.key.text.lower().find("total") >= 0 or field.key.text.lower().find("amount") >= 0) and field.value is not None:
-                        array_total.append([field.value.text,field.key.confidence])
+                        try:
+                            a = float(field.value.text)
+                            array_total.append([field.value.text,field.key.confidence])
+                        except Exception as e:
+                            print("Cannot proceed String to Number {}".format(field.value.text))
+                        
                         
                         
             ###### Find Date Key ######
@@ -147,21 +152,21 @@ def lambda_handler(event, context):
             print("Bad input receipt quality: s3:/{}/{} !".format(BUCKET,documentName))
             inputContent = {
                 "taskObject": s3_fname,
-                "date": "Need human review",
+                "date": "",
                 "vendor": vendor_name,
-                "total" : "Need human review the total"
+                "total" : ""
                 }
             print(inputContent)
             
             iotmessage={
-                "id" : os.environ['userid'] ,
+                "id" : cognitoid ,
                 "bucket" : BUCKET ,
                 "key" : documentName,
                 "status" : "Pending human review",
                 "result":{
                     "vendor": vendor_name,
-                    "date": "Need human review the date" , 
-                    "total": "Need human review the total"
+                    "date": "" , 
+                    "total": ""
                 }
             }
             iotpayload=json.dumps(iotmessage)
@@ -190,15 +195,15 @@ def lambda_handler(event, context):
             table = dynamodb.Table('image-tracking')
             dynamoresponse  = table.put_item(
                 Item={
-                    "id" : os.environ['userid'] ,
+                    "id" : cognitoid ,
                     "bucketkey" : s3_fname,
                     "bucket" : BUCKET ,
                     "key" : documentName,
                     "status" : "Pending human review",
                     "result":{
                         "vendor": vendor_name,
-                        "date": "Need human review the date" , 
-                        "total": "Need human review the total"
+                        "date": "" , 
+                        "total": ""
                     }
                 }
                 )
@@ -217,14 +222,14 @@ def lambda_handler(event, context):
                 
                 
                 iotmessage={
-                "id" : os.environ['userid'] ,
+                "id" : cognitoid ,
                 "bucket" : BUCKET ,
                 "key" : documentName,
                 "status" : "Pending human review",
                 "result":{
                     "vendor": vendor_name,
-                    "date": "Need human review the date" , 
-                    "total": "Need human review the total"
+                    "date": "" , 
+                    "total": ""
                     }
                 }
                 iotpayload=json.dumps(iotmessage)
@@ -252,7 +257,7 @@ def lambda_handler(event, context):
                 table = dynamodb.Table('image-tracking')
                 dynamoresponse  = table.put_item(
                 Item={
-                    "id" : os.environ['userid'] ,
+                    "id" : cognitoid ,
                     "bucketkey" : s3_fname,
                     "bucket" : BUCKET ,
                     "key" : documentName,
@@ -274,7 +279,7 @@ def lambda_handler(event, context):
                 
                 
                 iotmessage={
-                "id" : os.environ['userid'] ,
+                "id" : cognitoid ,
                 "bucket" : BUCKET ,
                 "key" : documentName,
                 "status" : "Completed",
@@ -292,7 +297,7 @@ def lambda_handler(event, context):
                 table = dynamodb.Table('image-tracking')
                 dynamoresponse  = table.put_item(
                 Item={
-                    "id" : os.environ['userid'],
+                    "id" : cognitoid,
                     "bucketkey" : s3_fname,
                     "bucket" : BUCKET ,
                     "key" : documentName,
@@ -306,8 +311,21 @@ def lambda_handler(event, context):
                 )
                 print(inputContent)
     else:
-        print("Image quality is low, please re-take your picture again...") 
-        inputContent="Image quality is low, please re-take your picture again..."
+        print("Image cannot be read, please upload another file.") 
+        inputContent="Image cannot be read, please upload another file."
+        iotmessage={
+                "id" : cognitoid ,
+                "bucket" : BUCKET ,
+                "key" : documentName,
+                "status" : "Image cannot be read, please upload another file.",
+                "result":{
+                    "vendor": "",
+                    "date": "" , 
+                    "total": ""
+                }
+            }
+        iotpayload=json.dumps(iotmessage)
+        response_iot=iot.publish(topic=topic, qos=1, payload=iotpayload)
     
     return {
      'full_payload' : json.dumps(inputContent)
