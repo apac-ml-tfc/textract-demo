@@ -2,6 +2,11 @@
 ## HOW TO: Using Amazon SageMaker Ground Truth and Amazon Rekognition Custom Labels
 
 # Preprocessing flow
+The objective of the pre-processing flow is to classify and recognize the image as good or bad to return a more near real-time 
+response for failures/distorted images. If this step isn't available the caller would have to wait for a longer time to get a response in the event if the image isn't valid.
+
+The pre-processing step also incorporates an image enhancement algorithms which tries to correct the image and retry the ML inferencing onre more time. After the 2nd retry, the system returns the ML classification result(good/bad) to the caller
+
 <br>![alt text ](https://github.com/apac-ml-tfc/textract-demo/blob/master/1.img-pre-processing/img-preprocessing-flow.png "Service Flow") 
 
 Step to follow for Image Pre-Processing
