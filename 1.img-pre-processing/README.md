@@ -1,7 +1,7 @@
 # Smart OCR : Image Pre-Processing
 ## HOW TO: Using Amazon SageMaker Ground Truth and Amazon Rekognition Custom Labels
 
-#Preprocessing flow
+# Preprocessing flow
 <br>![alt text ](https://github.com/apac-ml-tfc/textract-demo/blob/master/1.img-pre-processing/img-preprocessing-flow.png "Service Flow") 
 
 Step to follow for Image Pre-Processing
