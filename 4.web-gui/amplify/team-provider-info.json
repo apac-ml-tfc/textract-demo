@@ -1,0 +1,26 @@
+{
+    "dev": {
+        "awscloudformation": {
+            "AuthRoleName": "amplify-smartocr-dev-31839-authRole",
+            "UnauthRoleArn": "arn:aws:iam::077546553367:role/amplify-smartocr-dev-31839-unauthRole",
+            "AuthRoleArn": "arn:aws:iam::077546553367:role/amplify-smartocr-dev-31839-authRole",
+            "Region": "us-east-1",
+            "DeploymentBucketName": "amplify-smartocr-dev-31839-deployment",
+            "UnauthRoleName": "amplify-smartocr-dev-31839-unauthRole",
+            "StackName": "amplify-smartocr-dev-31839",
+            "StackId": "arn:aws:cloudformation:us-east-1:077546553367:stack/amplify-smartocr-dev-31839/ea85bfd0-a9ff-11ea-91bd-0e3b177c99d5",
+            "AmplifyAppId": "d3vmgkk6w2ae8d"
+        },
+        "categories": {
+            "auth": {
+                "smartocrc4d013f1": {}
+            },
+            "hosting": {
+                "amplifyhosting": {
+                    "appId": "d3vmgkk6w2ae8d",
+                    "type": "manual"
+                }
+            }
+        }
+    }
+}
