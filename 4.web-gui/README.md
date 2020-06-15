@@ -89,17 +89,21 @@ amplify push
 
 ## TODO: other AWS assets here
 
-### s3 image upload trigger
+### IoT Core endpoint for pubsub
+
+### dynamodb table
 
 ### lambda ocr function
 
-### preprocessing lambda function
+### s3 image upload trigger
 
-### dynamodb table
+### preprocessing lambda function
 
 ### a2i config
 
 ### post a2i lambda trigger
+
+## Run app
 
 ### Compile and run dev server locally
 ```
@@ -114,7 +118,7 @@ amplify add hosting
 ```
 amplify publish
 ```
-### Login to app
+## Login to app
 
 ## Cleanup project
 ```
