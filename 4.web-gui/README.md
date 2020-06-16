@@ -109,7 +109,8 @@ const AWS_PUBSUB_ENDPOINT = 'wss://ENDPOINTHERE/mqtt'
 ```
 #### Create IoT Policy
 To use PubSub with AWS IoT, you will need to create an IoT Policy in the AWS IoT Console, and attach this policy to each logged-in user's Cognito Identity. This attachment is performed after a Cognito user is authenticated.
-<br/>Go to [IoT Core](https://console.aws.amazon.com/iot/home) and choose <b>Secure</b> from the left navigation pane. Then navigate to <b>Policies</b> and create the following policy:
+
+Go to [IoT Core](https://console.aws.amazon.com/iot/home) and choose <b>Secure</b> from the left navigation pane. Then navigate to <b>Policies</b> and create the following policy:
 * Name: <b>myIoTPolicy</b>
 * Action: iot:*
 * Resource ARN: arn:aws:iot:YOUR-IOT-REGION:YOUR-IOT-ACCOUNT-ID:*
@@ -126,10 +127,15 @@ After function is created, go to <b>Permissions</b> tab to open the role (e.g. s
 * AWSIoTConfigAccess
 * AmazonCognitoPowerUser
 
+In IAM, search for <b>amplify-smartocr</b> and select the role that ends with <b>authRole</b>. This role was created by Amplify and assumed by authenticated users. Attach the following policies:
+* AWSIoTConfigAccess
+* AWSIotDataAccess
+
 Go to [Cognito User Pool](https://console.aws.amazon.com/cognito/users) and choose <b>Triggers</b> from the left navigation pane. In the <b>Post authentication panel</b>, select the Lambda function created previously:
 ```
 smartocr-post-authentication
 ```
+
 
 ### S3 image upload trigger
 Complete setup in [2.ocr-post-processing](https://github.com/apac-ml-tfc/textract-demo/tree/master/2.ocr-post-processing) and note Lambda function name.
