@@ -91,6 +91,38 @@ amplify push
 
 ### IoT Core endpoint for pubsub
 
+#### Obtain the IoT Core endpoint
+```
+aws iot describe-endpoint
+```
+Update the region and endpoint values in src/SmartOCR.vue
+```
+const AWS_PUBSUB_REGION = 'us-east-1'
+const AWS_PUBSUB_ENDPOINT = 'wss://ENDPOINTHERE/mqtt'
+```
+#### Create IoT Policy
+To use PubSub with AWS IoT, you will need to create the necessary IAM policies in the AWS IoT Console, and attach them to your Amazon Cognito Identity.
+<br/>Go to [IoT Core](https://console.aws.amazon.com/iot/home) and choose <b>Secure</b> from the left navigation pane. Then navigate to <b>Policies</b> and create the following policy:
+* Name: <b>myIoTPolicy</b>
+* Action: iot:*
+* Resource ARN: arn:aws:iot:YOUR-IOT-REGION:YOUR-IOT-ACCOUNT-ID:*
+* Effect: Allow
+Note: the policy name must match the name used in the following Lambda function.
+#### Attach IoT policy to Amazon Cognito Identity
+Create a new Lambda function with Function code from <b>src/smartocr-post-authentication</b>
+* Function name: <b>smartocr-post-authentication</b>
+* Runtime: Python 3.8
+* Execution role: Create a new role with basic Lambda permissions
+
+After function is created, go to <b>Permissions</b> tab to open the role (e.g. smartocr-post-authentication-role-e73v7toi), and attach the following policies:
+* AWSIoTConfigAccess
+* AmazonCognitoPowerUser
+
+Go to [Cognito User Pool](https://console.aws.amazon.com/cognito/users) and choose <b>Triggers</b> from the left navigation pane. In the <b>Post authentication panel</b>, select the Lambda function created previously:
+```
+smartocr-post-authentication
+```
+
 ### dynamodb table
 
 ### lambda ocr function
