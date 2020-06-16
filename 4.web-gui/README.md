@@ -90,6 +90,15 @@ amplify push
 ## TODO: other AWS assets here
 
 ### IoT Core endpoint for pubsub
+Run the following AWS CLI command to extract the IoT Core endpoint
+```
+aws iot describe-endpoint
+```
+Update the region and endpoint values in src/SmartOCR.vue
+```
+const AWS_PUBSUB_REGION = 'us-east-1'
+const AWS_PUBSUB_ENDPOINT = 'wss://ENDPOINTHERE/mqtt'
+```
 
 ### dynamodb table
 
