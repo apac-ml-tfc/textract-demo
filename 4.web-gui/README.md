@@ -41,8 +41,8 @@ This creates a smartocr folder.
 ```
 git clone https://github.com/apac-ml-tfc/textract-demo.git
 cd smartocr
-# copy and replace contents from textract-demo/4.web-gui into smartocr folder
 ```
+Copy and replace contents from <b>textract-demo/4.web-gui</b> into <b>smartocr</b> folder
 
 ### Install app required npm modules in the app folder
 ```
@@ -65,7 +65,7 @@ amplify init
 * build command: npm run-script build
 * start command: npm run-script serve
 * using default provider: awscloudformation (can’t change)
-* AWS profile: <use appropriate AWS profile>
+* AWS profile: use default or new profile
 
 ### Adds S3 storage with Cognito Authentication and Authorization
 ```
@@ -77,17 +77,24 @@ amplify add storage
 * How do you want users to be able to sign in: Username
 * Advanced settings: N
 * Resource friendly name: smartocr
-* bucket name: smartocr-uploads
+* bucket name: <b>smartocr-uploads</b>
 * who should have access: Auth users only
 * access: create/update, read
 * add Lambda trigger: N
 
-### Update CloudFormation stacks
+### Update cloud resources
+Run the following command to check Amplify's status:
+```
+amplify status
+```
+This will show the current status of the Amplify project, including the current environment, any categories that have been created, and what state those categories are in.
+
+Run the following command to update the cloud resources.
 ```
 amplify push
 ```
 
-## TODO: other AWS assets here
+## Setup additional AWS services
 
 ### IoT Core endpoint for pubsub
 
@@ -95,21 +102,22 @@ amplify push
 ```
 aws iot describe-endpoint
 ```
-Update the region and endpoint values in src/SmartOCR.vue
+Update the region and endpoint values in <b>src/SmartOCR.vue</b>
 ```
 const AWS_PUBSUB_REGION = 'us-east-1'
 const AWS_PUBSUB_ENDPOINT = 'wss://ENDPOINTHERE/mqtt'
 ```
 #### Create IoT Policy
-To use PubSub with AWS IoT, you will need to create the necessary IAM policies in the AWS IoT Console, and attach them to your Amazon Cognito Identity.
+To use PubSub with AWS IoT, you will need to create an IoT Policy in the AWS IoT Console, and attach this policy to each logged-in user's Cognito Identity. This attachment is performed after a Cognito user is authenticated.
 <br/>Go to [IoT Core](https://console.aws.amazon.com/iot/home) and choose <b>Secure</b> from the left navigation pane. Then navigate to <b>Policies</b> and create the following policy:
 * Name: <b>myIoTPolicy</b>
 * Action: iot:*
 * Resource ARN: arn:aws:iot:YOUR-IOT-REGION:YOUR-IOT-ACCOUNT-ID:*
 * Effect: Allow
+
 Note: the policy name must match the name used in the following Lambda function.
 #### Attach IoT policy to Amazon Cognito Identity
-Create a new Lambda function with Function code from <b>src/smartocr-post-authentication</b>
+Create a new [Lambda function](https://console.aws.amazon.com/lambda) with Function code from <b>src/smartocr-post-authentication.py</b>
 * Function name: <b>smartocr-post-authentication</b>
 * Runtime: Python 3.8
 * Execution role: Create a new role with basic Lambda permissions
@@ -123,17 +131,17 @@ Go to [Cognito User Pool](https://console.aws.amazon.com/cognito/users) and choo
 smartocr-post-authentication
 ```
 
-### dynamodb table
+### S3 image upload trigger
+Complete setup in [2.ocr-post-processing](https://github.com/apac-ml-tfc/textract-demo/tree/master/2.ocr-post-processing) and note Lambda function name.
 
-### lambda ocr function
+Go to [S3](https://console.aws.amazon.com/s3) and select <b>smartocr-uploads*</b> bucket. In the <b>Properties</b> tab select <b>Events</b> and add the following notification:
+* Name: smartocr-s3objectcreate
+* Events: All object create events
+* Send to: Lambda Function
+* Lambda: <b>Select the Lambda function defined in ocr-post-processing</b>
 
-### s3 image upload trigger
-
-### preprocessing lambda function
-
-### a2i config
-
-### post a2i lambda trigger
+### Post A2I lambda trigger
+Complete setup in [3.a2i-review](https://github.com/apac-ml-tfc/textract-demo/tree/master/3.a2i-review)
 
 ## Run app
 
@@ -142,19 +150,34 @@ smartocr-post-authentication
 npm run serve
 ```
 
-### Deploy to AWS Amplify Hosting
+If you are running this in an AWS Cloud9 environment, replace following content in the <b>vue.config.js</b> file
+```
+    #public: 'http://localhost:8080’
+    public: 'https://xxxxxxxxxxxx.vfs.cloud9.us-east-1.amazonaws.com'
+```
+
+### Login to app
+
+You may now login to the app on your local machine. On the home page, create an account with a valid email address for email confirmation. Login with the your credentials and try uploading samples from this folder.
+
+### Add hosting to your app
+Perform the following to deploy your app manually. You may choose to setup automatic continuous deployment.
 ```
 amplify add hosting
 ```
-* Amplify hosting
+* plugin module: Hosting with Amplify Console
+* type: Manual deployment
+
+### Publish app
+
 ```
 amplify publish
 ```
-## Login to app
+Note the published url, e.g. xvxvxvxvxvxvxv.amplifyapp.com
 
 ## Cleanup project
 ```
 amplify delete
 ```
 These objects must be deleted explicitly
-* S3 bucket
+* S3 buckets
