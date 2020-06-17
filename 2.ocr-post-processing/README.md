@@ -18,20 +18,20 @@
 ---
 ## Step to follow to deploy OCR Post-Processing
  
- ## 1.) Dynamo DB 
+ ## 1.) Create DynamoDB 
  In this step, we will navigate to DynamoDB Console and create the DynamoDB used throughout this application
 
 Login to AWS Console: https://console.aws.amazon.com/dynamodb/home?region=us-east-1#
 
 * Click - **Create Table**
-    * Bucket Name : **imnage-tracking**
+    * Table Name : **imnage-tracking**
     * Click checkbox **Add sort key** (bottom Partition Key Textbox)
         * Partition Key: **id**
         * Sort key: **bucketkey**
     * Leave all option as Default
 * Click **Create**
 
-#
+
 
 ## 2.) Create Lambda Function
  In this step, we will navigate to AWS Lambda Console and create the Labmda function used throughout this application
@@ -54,8 +54,8 @@ Login to AWS Console: https://console.aws.amazon.com/dynamodb/home?region=us-eas
     * 2.2.2) Create Main OCR Function
         * Copy Code from **src/ocrpostprocess.py** to the **lambda_function.py** that you have created.  
         * Save Lambda function by **CTRL+S**  
-# 
-## 3.) Lambda Permession
+
+## 3.) Setting Lambda Permession
 In your Lambda function, You click **Permission**, and Click a **Your Lambda Execute Role name**, It will direct to your IAM role
 
 * Click : **Attach Policies**
