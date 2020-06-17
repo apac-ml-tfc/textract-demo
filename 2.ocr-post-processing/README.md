@@ -16,9 +16,51 @@
         - AWSLambdaFullAccess, AmazonS3FullAccess, CloudWatchFullAccess, AmazonDynamoDBFullAccess, AmazonTextractFullAccess, ComprehendFullAccess, AWSIoTFullAccess, AmazonAugmentedAllHumanLoopFullAccess
     <h4> *** In Production, We are highly recommended to apply least privilege principal for IAM role</h4>
 ---
-### Step to follow to deploy OCR Post-Processing
- 1. Create lambda function 
- 2. Deploy file in  src/trp.py
- 3. Deploy file in src/ocrpostprocess.py
- ---
+## Step to follow to deploy OCR Post-Processing
+ 
+ ## 1.) Dynamo DB 
+ In this step, we will navigate to DynamoDB Console and create the DynamoDB used throughout this application
+
+Login to AWS Console: https://console.aws.amazon.com/dynamodb/home?region=us-east-1#
+
+* Click - **Create Table**
+    * Bucket Name : **imnage-tracking**
+    * Click checkbox **Add sort key** (bottom Partition Key Textbox)
+        * Partition Key: **id**
+        * Sort key: **bucketkey**
+    * Leave all option as Default
+* Click **Create**
+
+#
+
+## 2.) Create Lambda Function
+ In this step, we will navigate to AWS Lambda Console and create the Labmda function used throughout this application
+
+ Login to AWS Console: https://console.aws.amazon.com/lambda/home?region=us-east-1#/functions
+
+
+* 2.1) Create Lambda function by Click - **Create function**
+    * Choose : **Author from scratch**
+    * Function Name: **Your function name** (Ex. MyOCRProcessing)
+    * Runtime: **Python 3.8** 
+* Click: **Create function**
+
+
+* 2.2) Create Lambda Code, In Lambda Function Code IDE 
+    * 2.2.1) Create Textract parser
+        * Click file : **New file named: trp.py**
+        * Copy Code from **src/trp.py** to the **new file** that you have created, file name must be the same
+        * Save Lambda function by **CTRL+S**
+    * 2.2.2) Create Main OCR Function
+        * Copy Code from **src/ocrpostprocess.py** to the **lambda_function.py** that you have created.  
+        * Save Lambda function by **CTRL+S**  
+# 
+## 3.) Lambda Permession
+In your Lambda function, You click **Permission**, and Click a **Your Lambda Execute Role name**, It will direct to your IAM role
+
+* Click : **Attach Policies**
+* You may need follow IAM policy in order for OCR post processing function Execution role to work: **AWSLambdaFullAccess, AmazonS3FullAccess, CloudWatchFullAccess, AmazonDynamoDBFullAccess, AmazonTextractFullAccess, ComprehendFullAccess, AWSIoTFullAccess, AmazonAugmentedAllHumanLoopFullAccess**
+* Click : **Attach Policy**
+#
+Congraturation, You have finished OCR Post processing setup !!! 
 
