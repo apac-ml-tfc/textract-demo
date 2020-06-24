@@ -10,6 +10,8 @@ Go through the steps in the notebook a2i_humanloop.ipynb
 + to create a task ui, you need to define a ui template to work with. For other pre-built UIs (70+), check: https://github.com/aws-samples/amazon-a2i-sample-task-uis
 
 
+
+
 ## 2. Preparing CDK in Cloud9
 
 Please bring up a Cloud9 instance by going to https://ap-southeast-1.console.aws.amazon.com/cloud9/home/product. Cloud9 will provide you terminal access to run AWS CLI.
@@ -53,7 +55,7 @@ npm run watch
 
 This will start the TypeScript compiler (tsc) in “watch” mode, which will monitor your project directory and will automatically compile any changes to your .ts files to .js.
 
-## 3. Create the Human Post Processing lambba
+## 3. Create the Human Post Processing lambda
 
 Open up lib/cdklambda-stack.ts. This is where the meat of our application is.
 
@@ -108,4 +110,56 @@ cdk deploy
 You’ll notice that cdk deploy deployed your CloudFormation stack and create the lambda
 
 
+
+## 4. Create the s3 trigger to invoke the lambda
+
+S3 bucket will trigger the "a2i-json-to-dynamo" lambda whenever there is a new output.json in folder s3://textract-ocr-unicorn-gym-asean-demo/a2i-results
+
+To configure S3 notification we use following command:
+
 ```
+aws s3api put-bucket-notification-configuration --bucket textract-ocr-unicorn-gym-asean-demo --notification-configuration file://notification.json
+
+```
+
+Notification.json describes how the trigger should look like, for example:
+
+```
+Notification.json describes how the trigger should look like, for example:
+
+{
+"LambdaFunctionConfigurations": [
+    {
+      "Id": "my-lambda-function-s3-event-configuration",
+      "LambdaFunctionArn": "arn-of-aws-lambda-function",
+      "Events": [ "s3:ObjectCreated:Put" ],
+      "Filter": {
+        "Key": {
+          "FilterRules": [
+            {
+              "Name": "prefix",
+              "Value": "a2i-results/"
+            },
+            {
+              "Name": "suffix",
+              "Value": ".json"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
+
+```
+
+
+## 5. Running the demo
+
+To run the demo, follow the steps below
+
+1) Join the humanflow-team private team
+2) Upload the receipt to the web ui and make sure it triggers the human review
+3) Login to the private team labelling console https://g27hwd6auf.labeling.us-east-1.sagemaker.aws
+4) There will be a task named "human flow task"
+5) Open the task and review/amend the textract outputs and complete the task
