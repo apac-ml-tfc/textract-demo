@@ -1,40 +1,52 @@
-# End to End Smart OCR 
+# End-to-End Smart OCR
 
-Enhancing OCR technology for real-life use cases.
+[Amazon Textract's](https://aws.amazon.com/textract/) advanced extraction features go beyond simple OCR to recover structure from documents: Including tables, key-value pairs (like on forms), and other tricky use-cases like multi-column text.
 
- To build a Web Application that demonstrates the value of Amazon Textract augmented with A2I for manual overrides. Intelligent input validation of images using enhance pre-processing algorithms  
- <br>
+**However, many practical applications need to combine this technology with use-case-specific logic** - such as:
 
+- Pre-checking that submitted images are high-quality and of the expected document type
+- Post-processing structured text results into business-process-level fields (e.g. in one domain "Amount", "Total Amount" and "Amount Payable" may be different raw annotations for the same thing; whereas in another the differences might be important!)
+- Human review and re-training flows
 
- 
-# Solution Architecture 
+This solution demonstrates how Textract can be integrated with:
 
-<br>![alt text ](https://github.com/apac-ml-tfc/textract-demo/blob/master/smartocr-solution-architecture.png "Smart OCR Demo Architecture")
+- **Image pre-processing logic** - using [Amazon Rekognition Custom Labels](https://aws.amazon.com/rekognition/custom-labels-features/) to create a high-quality custom computer vision with no ML expertise required
+- **Results post-processing logic** - using custom logic as well as NLP from [Amazon Comprehend](https://aws.amazon.com/comprehend/)
+- **Human review and data annotation** - using [Amazon A2I](https://aws.amazon.com/augmented-ai/) and [Amazon SageMaker Ground Truth](https://aws.amazon.com/sagemaker/groundtruth/)
 
-
-
-
-## This module has total four components
-  - [Web UI component to upload the receipt/document to S3 & view OCR result](https://github.com/apac-ml-tfc/textract-demo/tree/master/4.web-gui)
-  - [Preprocessing part to identify this image as "good" or "bad](https://github.com/apac-ml-tfc/textract-demo/blob/master/1.img-pre-processing/README.md)
-  - [Textract for OCR](https://github.com/apac-ml-tfc/textract-demo/blob/master/2.ocr-post-processing/README.md)
-  - [Human-In-The-Loop (A2I) for human intervention in case of bad images](https://github.com/apac-ml-tfc/textract-demo/blob/master/3.a2i-review/a2i_humanloop.ipynb)
-
-  Additional details on how to deploy these modules have been provided in the readme file in the respective folders.
-
-### AWS Services Used
-* [AWS Groundtruth] - Manual labelling of training data set
-* [AWS Rekognition Custom Labels] - quickly build custom ML models to detect objects and classify image quality
-* [AWS Textract] - document text detection and analysis
-* [Amazon Comprehend] - uses natural language processing (NLP) to extract insights about content of documents
-* [Amazon Augmented AI (A2I)] - build the workflows required for human review of ML predictions
-* [AWS Lambda] - AWS Serverless components to execute code without worrying about servers
-* [AWS API Gateway] - AWS API Management service
-* [AWS Amplify] - framework to build fullstack iOS, Android, Web, and React Native apps
-* [AWS IoT Core] - enables secure, bi-directional communication between client and AWS Cloud over MQTT and HTTP
-* [Amazon DynamoDB] - fully managed NoSQL database service to store ocr labels
-* [Amazon S3] - object store for documents and images
-* [Amazon Cognito] - handles user registration, authentication and authorization for the web app
+The design is modular, to show how this pre- and post-processing can be easily customized for different use-cases.
 
 
+## Solution Architecture 
 
+![Smart OCR Architecture Diagram](images/architecture-overview.png "Smart OCR Demo Architecture")
+
+The solution has four high-level modules:
+
+- [Preprocessing part to identify this image as "good" or "bad](1.img-pre-processing)
+- [Textract for OCR](2.ocr-post-processing)
+- [Human-In-The-Loop (A2I) for human intervention in case of bad images](3.a2i-review)
+- [Web UI component to upload the receipt/document to S3 & view OCR result](4.web-gui)
+
+Additional details on how to deploy these modules have been provided in the readme file in the respective folders.
+
+
+## AWS Services Used
+
+**Machine Learning Services:**
+
+- [Amazon SageMaker Ground Truth](https://aws.amazon.com/sagemaker/groundtruth/) - Manual labelling of training data set
+- [Amazon Rekognition Custom Labels](https://aws.amazon.com/rekognition/custom-labels-features/) - Quickly build custom ML models to detect objects and classify image quality
+- [Amazon Textract](https://aws.amazon.com/textract/) - Document text detection and analysis
+- [Amazon Comprehend](https://aws.amazon.com/comprehend/) - Natural language processing (NLP) to extract insights about content of documents
+- [Amazon Augmented AI (A2I)](https://aws.amazon.com/augmented-ai/) - Human intervention for low-confidence ML predictions
+
+**Integration and Orchestration:**
+
+- [AWS Lambda](https://aws.amazon.com/lambda/) - AWS Serverless components to execute code without worrying about servers
+- [AWS API Gateway](https://aws.amazon.com/api-gateway/) - AWS API Management service
+- [AWS Amplify](https://aws.amazon.com/amplify/) - Framework to build full-stack iOS, Android, Web, and React Native apps
+- [AWS IoT Events](https://aws.amazon.com/iot-events/) - Secure, bi-directional communication between client and AWS Cloud
+- [Amazon DynamoDB](https://aws.amazon.com/dynamodb/) - Highly scalable NoSQL database to store OCR labels
+- [Amazon S3](https://aws.amazon.com/s3/) - Object store for documents and images
+- [Amazon Cognito](https://aws.amazon.com/cognito/) - Handles user registration, authentication and authorization for the web app
