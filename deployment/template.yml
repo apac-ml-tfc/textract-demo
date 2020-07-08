@@ -1,0 +1,399 @@
+# CloudFormation for End-to-end Textract demo
+# TODO: Consider splitting out stacks for individual pipeline stages for clarity
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Resources:
+
+  # Destination for uploads from client UI (objects trigger workflow)
+  RawInputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - ExpirationInDays: 7
+            Status: Enabled
+      # Triggering Step Functions happens via CloudTrail (see below), not NotificationConfiguration here
+
+  # Storage for modified source images (if pre-processing supports this)
+  ProcessedInputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - ExpirationInDays: 7
+            Status: Enabled
+
+  # Raw Textract results
+  RawOutputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - ExpirationInDays: 7
+            Status: Enabled
+
+  # A2I human review loop outputs
+  HumanReviewsBucket:
+    Type: AWS::S3::Bucket
+    # Creating the bucket, the Lambda function, and the Lambda permission creates a circular dependency that
+    # we chose to navigate here by relaxing the permissions - but you could instead tackle by explicitly
+    # configuring a bucket name:
+    # https://aws.amazon.com/premiumsupport/knowledge-center/unable-validate-circular-dependency-cloudformation/
+    DependsOn:
+      - HumanReviewCallbackPermission
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - ExpirationInDays: 7
+            Status: Enabled
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            # Filter: # TODO: Store outputs under a prefix?
+            Function: !GetAtt FunctionHumanReviewCallback.Arn
+
+
+##########  COMMON TO BE FACTORED OUT  ##########
+  # TODO: Scope the various Lambda permissions down
+  LambdaAdminRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      # If we can avoid naming the roles, we avoid needing an extra CF 'capability'
+      #RoleName: !Sub '${ProjectId}-LambdaAdminRole'
+      #Path: !Sub '/${ProjectId}/'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+##########  PRE-PROCESSING  ##########
+  FunctionPreProcess:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      #FunctionName: We'll allow to auto-generate instead
+      Description: Pre-process an image in S3
+      CodeUri: ../source/functions/preprocess/
+      Handler: main.handler
+      MemorySize: 256
+      Runtime: python3.8
+      Role: !GetAtt LambdaAdminRole.Arn
+      Timeout: 30
+      Environment:
+        Variables:
+          # TODO: Parameterize
+          LAMBDA_ENHANCED_IMAGE_ARN: 'arn:aws:lambda:us-east-1:077546553367:function:nutchanon-preprocessing:$LATEST'
+          REKOGNITION_MODEL_ARN: 'arn:aws:rekognition:us-east-1:077546553367:project/unicorn-gym-custom-label/version/unicorn-gym-custom-label.2020-06-08T13.55.38/1591599339120'
+      # Layers:
+      #   - !Ref CommonCodeLayer
+
+
+##########  TEXTRACT OCR  ##########
+  FunctionCallTextract:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      #FunctionName: We'll allow to auto-generate instead'
+      Description: Process an artifact with Textract
+      CodeUri: ../source/functions/call-textract/
+      Handler: main.handler
+      MemorySize: 256
+      Runtime: python3.8
+      Role: !GetAtt LambdaAdminRole.Arn
+      Timeout: 30
+      Environment:
+        Variables:
+          TEXTRACT_INTEGRATION_TYPE: 'SYNC'
+      # Layers:
+      #   - !Ref CommonCodeLayer
+
+
+##########  OCR RESULT POST-PROCESSING  ##########
+  FunctionPostProcess:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      #FunctionName: We'll allow to auto-generate instead
+      Description: Post-process Textract results into business-level fields
+      CodeUri: ../source/functions/postprocess/
+      Handler: main.handler
+      MemorySize: 256
+      Runtime: python3.8
+      Role: !GetAtt LambdaAdminRole.Arn
+      Timeout: 30
+      # Layers:
+      #   - !Ref CommonCodeLayer
+
+
+##########  HUMAN REVIEW  ##########
+  FunctionStartHumanReview:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      #FunctionName: We'll allow to auto-generate instead
+      Description: Kick off an A2I human loop
+      CodeUri: ../source/functions/start-human-review/
+      Handler: main.handler
+      MemorySize: 256
+      Runtime: python3.8
+      Role: !GetAtt LambdaAdminRole.Arn
+      Timeout: 30
+      # Layers:
+      #   - !Ref CommonCodeLayer
+
+  FunctionHumanReviewCallback:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      #FunctionName: We'll allow to auto-generate instead
+      Description: Process and notify results of a completed human loop
+      CodeUri: ../source/functions/human-review-callback/
+      Handler: main.handler
+      MemorySize: 256
+      Runtime: python3.8
+      Role: !GetAtt LambdaAdminRole.Arn
+      Timeout: 30
+      # Environment:
+        # Variables:
+          # TEXTRACT_INTEGRATION_TYPE: 'SYNC'
+      # Layers:
+      #   - !Ref CommonCodeLayer
+
+  HumanReviewCallbackPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt FunctionHumanReviewCallback.Arn  # Should we use ARN in the other permission too?
+      Action: 'lambda:InvokeFunction'
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+      # Leaving this open to other/unneeded bucket invokations from inside our own AccountId, rather than
+      # parameterizing hard-coding the review bucket name to get around the circular dependency which would
+      # be a pain for workshops/etc (since bucket names need to be globally unique).
+      #SourceArn: !Sub 'arn:aws:s3:::${HumanReviewsBucket}'
+
+
+##########  STATE MACHINE ORCHESTRATOR FOR THE PROCESS  ##########
+  StepFunctionsXRayAccessPolicy:
+    # (As created by default in StepFunctions console)
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      # If we can avoid naming the policies, we avoid needing an extra CF 'capability'
+      #ManagedPolicyName: !Sub '${ProjectId}-StepFnXRayAccess'
+      #Path: !Sub '/${ProjectId}/'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'xray:PutTraceSegments'
+              - 'xray:PutTelemetryRecords'
+              - 'xray:GetSamplingRules'
+              - 'xray:GetSamplingTargets'
+            Resource: '*'
+
+  CloudWatchLogsDeliveryFullAccessPolicy:
+    # (As created by default in StepFunctions console)
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      # If we can avoid naming the policies, we avoid needing an extra CF 'capability'
+      #ManagedPolicyName: !Sub '${ProjectId}-CWLogsDeliveryFullAccess'
+      #Path: !Sub '/${ProjectId}/'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'logs:CreateLogDelivery'
+              - 'logs:GetLogDelivery'
+              - 'logs:UpdateLogDelivery'
+              - 'logs:DeleteLogDelivery'
+              - 'logs:ListLogDeliveries'
+              - 'logs:PutResourcePolicy'
+              - 'logs:DescribeResourcePolicies'
+              - 'logs:DescribeLogGroups'
+            Resource: '*'
+
+  StepFunctionAdminRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      # If we can avoid naming the roles, we avoid needing an extra CF 'capability'
+      #RoleName: !Sub '${ProjectId}-StepFunctionAdminRole'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSLambdaFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSageMakerFullAccess'
+        - !Ref StepFunctionsXRayAccessPolicy
+        - !Ref CloudWatchLogsDeliveryFullAccessPolicy
+
+  PipelineLogGroup:
+    Type: AWS::Logs::LogGroup
+    # Properties:
+    #   LogGroupName: # The default naming isn't too bad
+    #   RetentionInDays: # 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653
+
+  PipelineStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      # Omitting name gives PipelineStateMachine-[GARBAGE], which might be nice enough for you but might not!
+      Name: !Sub '${AWS::StackName}-PipelineStateMachine'
+      DefinitionUri: ../source/StateMachine.asl.json
+      DefinitionSubstitutions:
+        FunctionPreProcessArn: !GetAtt FunctionPreProcess.Arn
+        FunctionCallTextractArn: !GetAtt FunctionCallTextract.Arn
+        FunctionPostProcessArn: !GetAtt FunctionPostProcess.Arn
+        FunctionStartHumanReviewName: !Ref FunctionStartHumanReview
+        RawOutputBucketName: !Ref RawOutputBucket
+      Logging:
+        Destinations:
+          - CloudWatchLogsLogGroup: 
+              LogGroupArn: !GetAtt PipelineLogGroup.Arn
+        IncludeExecutionData: true
+        Level: ALL  # or ERROR, FATAL, OFF (default)
+      Role: !GetAtt StepFunctionAdminRole.Arn
+      Type: STANDARD
+
+
+##########  TRIGGERING THE STATE MACHINE FROM INPUT IMAGES  ##########
+  # We'll use S3 trigger to kick off our state machine, but let the state machine handle the rest of the orchestration.
+  # Note that the workflow could be built-up from point-integrations instead: e.g. each step triggering the next.
+  InputCloudTrailBucket:
+    Type: AWS::S3::Bucket
+
+  LogBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref InputCloudTrailBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AWSCloudTrailAclCheck
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: 's3:GetBucketAcl'
+            Resource: !GetAtt InputCloudTrailBucket.Arn
+          - Sid: AWSCloudTrailWrite
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: 's3:PutObject'
+            Resource: !Sub '${InputCloudTrailBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                's3:x-amz-acl': 'bucket-owner-full-control'
+
+  RawInputTrail:
+    Type: AWS::CloudTrail::Trail
+    DependsOn:
+      - LogBucketPolicy
+    Properties:
+      EventSelectors: 
+        - DataResources:
+            - Type: AWS::S3::Object
+              Values:
+                - !Sub '${RawInputBucket.Arn}/'
+          IncludeManagementEvents: false
+          ReadWriteType: WriteOnly
+      IncludeGlobalServiceEvents: false
+      IsLogging: true
+      IsMultiRegionTrail: false
+      S3BucketName: !Ref InputCloudTrailBucket
+      #S3KeyPrefix: Might be useful to scope down?
+      #TrailName: Use default
+
+  AmazonCloudWatchEventRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        -
+          PolicyName: cwe-pipeline-execution
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              -
+                Effect: Allow
+                Action: states:StartExecution
+                Resource: !Ref PipelineStateMachine
+
+  InputCloudWatchEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - aws.s3
+        detail-type:
+          - 'AWS API Call via CloudTrail'
+        detail:
+          eventSource:
+            - s3.amazonaws.com
+          eventName:
+            - CopyObject
+            - PutObject
+            - CompleteMultipartUpload
+          requestParameters:
+            bucketName:
+              - !Ref RawInputBucket
+      Targets:
+        - Arn: !Ref PipelineStateMachine
+          RoleArn: !GetAtt AmazonCloudWatchEventRole.Arn
+          Id: start-ocr-statemachine
+
+
+##########  PROGRESS PUSH NOTIFICATIONS  ##########
+  FunctionNotifySfnProgress:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      #FunctionName: We'll allow to auto-generate instead
+      Description: Send push notifications when Step Functions log indicates state transition
+      CodeUri: ../source/functions/notify-sfn-progress/
+      Handler: main.handler
+      MemorySize: 256
+      Runtime: python3.8
+      Role: !GetAtt LambdaAdminRole.Arn
+      Timeout: 30
+      # Layers:
+      #   - !Ref CommonCodeLayer
+
+  NotifySfnProgressPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref FunctionNotifySfnProgress
+      Principal: !Sub 'logs.${AWS::Region}.amazonaws.com'
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !GetAtt PipelineLogGroup.Arn
+
+  SfnProgressSubscriptionFilter:
+    Type: 'AWS::Logs::SubscriptionFilter'
+    DependsOn:
+      - NotifySfnProgressPermission
+    Properties:
+      DestinationArn: !GetAtt FunctionNotifySfnProgress.Arn
+      # See the list at https://docs.aws.amazon.com/step-functions/latest/apireference/API_HistoryEvent.html
+      FilterPattern: >-
+        { $.type="ChoiceStateEntered" || $.type="ExecutionAborted" || $.type="ExecutionFailed" || 
+        $.type="ExecutionStarted" || $.type="ExecutionSucceeded" || $.type="ExecutionTimedOut" ||
+        $.type="FailStateEntered" || $.type="MapStateEntered" || $.type="ParallelStateEntered" ||
+        $.type="PassStateEntered" || $.type="SucceedStateEntered" || $.type="TaskStateEntered" ||
+        $.type="WaitStateEntered" }
+      LogGroupName: !Ref PipelineLogGroup
+      #RoleArn:  # Not needed for Lambda function destinations
