@@ -37,9 +37,9 @@ deploy.processing: ##=> Deploy OCR processing service using SAM
 		sam deploy \
 			--template-file template-packaged.tmp.yml \
 			--stack-name $${STACK_NAME}-processing-$${AWS_BRANCH} \
-			--capabilities CAPABILITY_IAM
-		--parameter-overrides \
-			UploadBucketName=$${UPLOAD_BUCKET_NAME}
+			--capabilities CAPABILITY_IAM \
+			--parameter-overrides \
+				UploadBucketName=$${UPLOAD_BUCKET_NAME}
 		# 	BookingTable=/$${AWS_BRANCH}/service/amplify/storage/table/booking \
 		# 	FlightTable=/$${AWS_BRANCH}/service/amplify/storage/table/flight \
 		# 	CollectPaymentFunction=/$${AWS_BRANCH}/service/payment/function/collect \
