@@ -100,8 +100,8 @@ const photoPickerConfig = {
     level: 'private'
   }
 }
-const AWS_PUBSUB_REGION = 'us-east-1'
-const AWS_PUBSUB_ENDPOINT = 'wss://a3cxgq27itsdmr-ats.iot.us-east-1.amazonaws.com/mqtt'
+const AWS_PUBSUB_REGION = process.env.VUE_APP_PUBSUB_REGION;
+const AWS_PUBSUB_ENDPOINT = `wss://${process.env.VUE_APP_PUBSUB_ENDPOINT}/mqtt`;
 
 export default {
   name: 'SmartOCR',

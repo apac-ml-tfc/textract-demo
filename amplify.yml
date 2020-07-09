@@ -42,6 +42,11 @@ frontend:
         - npm install
     build:
       commands:
+        # Extract environment data
+        - export PUBSUB_ENDPOINT_NAME=$(aws iot describe-endpoint --query 'endpointAddress' --output text)
+        - export PUBSUB_REGION_NAME=$(jq -r '.providers.awscloudformation.Region' ./amplify/#current-cloud-backend/amplify-meta.json)
+        # Push environment data into frontend build
+        - printf "VUE_APP_PUBSUB_ENDPOINT=${PUBSUB_ENDPOINT_NAME}\nVUE_APP_PUBSUB_REGION=${PUBSUB_REGION_NAME}" > .env
         # Expose variables from env or SSM to front end as required:
         #- export ENV_VAR_NAME=$(aws ssm get-parameter --name/${AWS_BRANCH}/service/... --query 'Parameter.Value --output text')
         - npm run build
