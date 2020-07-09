@@ -31,6 +31,13 @@ The solution has four high-level modules:
 Additional details on how to deploy these modules have been provided in the readme file in the respective folders.
 
 
+## Getting Started
+
+**WORK IN PROGRESS one-click deploy button (probably broken!)**
+
+[![One-click deployment](https://oneclick.amplifyapp.com/button.svg)](https://console.aws.amazon.com/amplify/home#/deploy?repo=https://github.com/athewsey/textract-demo)
+
+
 ## AWS Services Used
 
 **Machine Learning Services:**
