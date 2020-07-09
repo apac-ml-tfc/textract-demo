@@ -7,8 +7,9 @@ Parameters:
     Description: The existing bucket which should be listened to for image uploads.
     Type: String
     Default: ''
-    AllowedPattern: "^[a-zA-Z][a-zA-Z0-9-.]*"
-    ConstraintDescription: Must be a valid S3 bucket name
+    # Removed the constraint when making the param optional:
+    #AllowedPattern: "^[a-zA-Z][a-zA-Z0-9-.]*"
+    #ConstraintDescription: Must be a valid S3 bucket name
 Conditions:
   CreateUploadBucket: !Equals [!Ref UploadBucketName, '']
 Resources:
