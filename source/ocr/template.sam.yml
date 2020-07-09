@@ -6,13 +6,17 @@ Parameters:
   UploadBucketName:
     Description: The existing bucket which should be listened to for image uploads.
     Type: String
+    Default: ''
     AllowedPattern: "^[a-zA-Z][a-zA-Z0-9-.]*"
     ConstraintDescription: Must be a valid S3 bucket name
+Conditions:
+  CreateUploadBucket: !Equals [!Ref UploadBucketName, '']
 Resources:
 
   # Destination for uploads from client UI (objects trigger workflow)
   RawInputBucket:
     Type: AWS::S3::Bucket
+    Condition: CreateUploadBucket
     Properties:
       LifecycleConfiguration:
         Rules:
@@ -306,8 +310,9 @@ Resources:
         - DataResources:
             - Type: AWS::S3::Object
               Values:
+                - !If [CreateUploadBucket, Sub '${RawInputBucket.Arn}/', !Sub 'arn:aws:s3:::${UploadBucketName}/']
                 #- !Sub '${RawInputBucket.Arn}/'
-                - !Sub 'arn:aws:s3:::${UploadBucketName}/'
+                #- !Sub 'arn:aws:s3:::${UploadBucketName}/'
           IncludeManagementEvents: false
           ReadWriteType: WriteOnly
       IncludeGlobalServiceEvents: false
@@ -359,7 +364,8 @@ Resources:
           requestParameters:
             bucketName:
               #- !Ref RawInputBucket
-              - !Ref UploadBucketName
+              #- !Ref UploadBucketName
+              - !If [CreateUploadBucket, !Ref RawInputBucket, !Ref UploadBucketName]
       Targets:
         - Arn: !Ref PipelineStateMachine
           RoleArn: !GetAtt AmazonCloudWatchEventRole.Arn
