@@ -28,6 +28,7 @@ deploy.processing: ##=> Deploy OCR processing service using SAM
 	$(info [*] Packaging and deploying Booking service...)
 	cd source/ocr && \
 		sam build \
+    	--use-container \
 			--template template.sam.yml && \
 		sam package \
 			--s3-bucket $${DEPLOYMENT_BUCKET_NAME} \
