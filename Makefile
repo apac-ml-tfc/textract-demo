@@ -28,7 +28,6 @@ deploy.processing: ##=> Deploy OCR processing service using SAM
 	$(info [*] Packaging and deploying Booking service...)
 	cd source/ocr && \
 		sam build \
-    	--use-container \
 			--template template.sam.yml && \
 		sam package \
 			--s3-bucket $${DEPLOYMENT_BUCKET_NAME} \
@@ -61,8 +60,10 @@ export.parameter:
 _install_os_packages:
 	$(info [*] Installing jq...)
 	yum install jq -y
-	$(info [*] Installing docker...)
-	yum install docker -y
+	$(info [*] Checking currently installed Python version...)
+	python --version
+	$(info [*] Installing Python v3.8...)
+	yum install python3.8 -y
 	$(info [*] Upgrading Python SAM CLI and CloudFormation linter to the latest version...)
 	python3 -m pip install --upgrade --user cfn-lint aws-sam-cli
 	npm -g install aws-cdk
