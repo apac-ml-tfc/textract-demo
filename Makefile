@@ -61,9 +61,17 @@ _install_os_packages:
 	$(info [*] Installing jq...)
 	yum install jq -y
 	$(info [*] Checking currently installed Python version...)
-	python --version
+	python3 --version
 	$(info [*] Installing Python v3.8...)
-	yum install python3.8 -y
+	pwd
+	cd /opt
+	wget https://www.python.org/ftp/python/3.8.3/Python-3.8.3.tgz
+	tar xzf Python-3.8.3.tgz
+	cd Python-3.8.3
+	./configure --enable-optimizations
+	make altinstall
+	rm -f /opt/Python-3.8.3.tgz
+	python3.8 --version
 	$(info [*] Upgrading Python SAM CLI and CloudFormation linter to the latest version...)
 	python3 -m pip install --upgrade --user cfn-lint aws-sam-cli
 	npm -g install aws-cdk
