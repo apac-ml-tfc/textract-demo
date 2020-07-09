@@ -310,7 +310,7 @@ Resources:
         - DataResources:
             - Type: AWS::S3::Object
               Values:
-                - !If [CreateUploadBucket, Sub '${RawInputBucket.Arn}/', !Sub 'arn:aws:s3:::${UploadBucketName}/']
+                - !If [CreateUploadBucket, !Sub '${RawInputBucket.Arn}/', !Sub 'arn:aws:s3:::${UploadBucketName}/']
                 #- !Sub '${RawInputBucket.Arn}/'
                 #- !Sub 'arn:aws:s3:::${UploadBucketName}/'
           IncludeManagementEvents: false
