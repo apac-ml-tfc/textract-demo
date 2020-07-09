@@ -2,6 +2,12 @@
 # TODO: Consider splitting out stacks for individual pipeline stages for clarity
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
+Parameters:
+  UploadBucketName:
+    Description: The existing bucket which should be listened to for image uploads.
+    Type: String
+    AllowedPattern: "^[a-zA-Z][a-zA-Z0-9-.]*"
+    ConstraintDescription: Must be a valid S3 bucket name
 Resources:
 
   # Destination for uploads from client UI (objects trigger workflow)
@@ -300,7 +306,8 @@ Resources:
         - DataResources:
             - Type: AWS::S3::Object
               Values:
-                - !Sub '${RawInputBucket.Arn}/'
+                #- !Sub '${RawInputBucket.Arn}/'
+                - !Sub 'arn:aws:s3:::${UploadBucketName}/'
           IncludeManagementEvents: false
           ReadWriteType: WriteOnly
       IncludeGlobalServiceEvents: false
@@ -351,7 +358,8 @@ Resources:
             - CompleteMultipartUpload
           requestParameters:
             bucketName:
-              - !Ref RawInputBucket
+              #- !Ref RawInputBucket
+              - !Ref UploadBucketName
       Targets:
         - Arn: !Ref PipelineStateMachine
           RoleArn: !GetAtt AmazonCloudWatchEventRole.Arn
