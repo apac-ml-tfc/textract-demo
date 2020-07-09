@@ -82,7 +82,7 @@ Resources:
       CodeUri: ./functions/preprocess/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.8
+      Runtime: python3.7
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       Environment:
@@ -103,7 +103,7 @@ Resources:
       CodeUri: ./functions/call-textract/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.8
+      Runtime: python3.7
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       Environment:
@@ -122,7 +122,7 @@ Resources:
       CodeUri: ./functions/postprocess/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.8
+      Runtime: python3.7
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       # Layers:
@@ -138,7 +138,7 @@ Resources:
       CodeUri: ./functions/start-human-review/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.8
+      Runtime: python3.7
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       # Layers:
@@ -152,7 +152,7 @@ Resources:
       CodeUri: ./functions/human-review-callback/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.8
+      Runtime: python3.7
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       # Environment:
@@ -367,7 +367,7 @@ Resources:
       CodeUri: ./functions/notify-sfn-progress/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.8
+      Runtime: python3.7
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       # Layers:
