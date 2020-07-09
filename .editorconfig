@@ -1,0 +1,11 @@
+[*.js]
+indent_style = space
+indent_size = 2
+
+[*.py]
+indent_style = space
+indent_size = 4
+
+[*.vue]
+indent_style = space
+indent_size = 2

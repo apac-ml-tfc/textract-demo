@@ -79,7 +79,7 @@ Resources:
     Properties:
       #FunctionName: We'll allow to auto-generate instead
       Description: Pre-process an image in S3
-      CodeUri: ../source/functions/preprocess/
+      CodeUri: ./functions/preprocess/
       Handler: main.handler
       MemorySize: 256
       Runtime: python3.8
@@ -100,7 +100,7 @@ Resources:
     Properties:
       #FunctionName: We'll allow to auto-generate instead'
       Description: Process an artifact with Textract
-      CodeUri: ../source/functions/call-textract/
+      CodeUri: ./functions/call-textract/
       Handler: main.handler
       MemorySize: 256
       Runtime: python3.8
@@ -119,7 +119,7 @@ Resources:
     Properties:
       #FunctionName: We'll allow to auto-generate instead
       Description: Post-process Textract results into business-level fields
-      CodeUri: ../source/functions/postprocess/
+      CodeUri: ./functions/postprocess/
       Handler: main.handler
       MemorySize: 256
       Runtime: python3.8
@@ -135,7 +135,7 @@ Resources:
     Properties:
       #FunctionName: We'll allow to auto-generate instead
       Description: Kick off an A2I human loop
-      CodeUri: ../source/functions/start-human-review/
+      CodeUri: ./functions/start-human-review/
       Handler: main.handler
       MemorySize: 256
       Runtime: python3.8
@@ -149,7 +149,7 @@ Resources:
     Properties:
       #FunctionName: We'll allow to auto-generate instead
       Description: Process and notify results of a completed human loop
-      CodeUri: ../source/functions/human-review-callback/
+      CodeUri: ./functions/human-review-callback/
       Handler: main.handler
       MemorySize: 256
       Runtime: python3.8
@@ -245,7 +245,7 @@ Resources:
     Properties:
       # Omitting name gives PipelineStateMachine-[GARBAGE], which might be nice enough for you but might not!
       Name: !Sub '${AWS::StackName}-PipelineStateMachine'
-      DefinitionUri: ../source/StateMachine.asl.json
+      DefinitionUri: ./StateMachine.asl.json
       DefinitionSubstitutions:
         FunctionPreProcessArn: !GetAtt FunctionPreProcess.Arn
         FunctionCallTextractArn: !GetAtt FunctionCallTextract.Arn
@@ -364,7 +364,7 @@ Resources:
     Properties:
       #FunctionName: We'll allow to auto-generate instead
       Description: Send push notifications when Step Functions log indicates state transition
-      CodeUri: ../source/functions/notify-sfn-progress/
+      CodeUri: ./functions/notify-sfn-progress/
       Handler: main.handler
       MemorySize: 256
       Runtime: python3.8
