@@ -141,19 +141,18 @@ export default {
     subscribeOCRTopic: async function () {
       logger.debug('subscribed:', this.subscribed)
       if (!this.subscribed) {
-        
-        await Auth.currentCredentials()
+
+        const creds = await Auth.currentCredentials();
+        this.identityId = creds.identityId;
+        logger.debug('cognitoIdentityId: ', this.identityId);
+
         logger.debug('Adding AWSIoTProvider')
         Amplify.addPluggable(new AWSIoTProvider({
           aws_pubsub_region: AWS_PUBSUB_REGION,
-          aws_pubsub_endpoint: AWS_PUBSUB_ENDPOINT
+          aws_pubsub_endpoint: AWS_PUBSUB_ENDPOINT,
+          clientId: this.identityId,
         }))
         
-        const authCheck = this
-        await Auth.currentCredentials().then((info) => {
-          authCheck.identityId = info.identityId;
-        });
-        logger.debug('cognitoIdentityId: ', this.identityId)
         const topic = this.OCRTopicPrefix + '/' + this.identityId
         logger.debug('topic:', topic)
  
