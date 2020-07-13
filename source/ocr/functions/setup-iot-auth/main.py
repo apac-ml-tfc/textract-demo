@@ -242,6 +242,7 @@ def update_stack_handler(event, context):
         and user_pool_id == old_user_pool_id
         and iot_policy_name == old_iot_policy_name
     ):
+        print("Null update - nothing to change")
         return cfnresponse.send(
             event,
             context,
@@ -250,6 +251,7 @@ def update_stack_handler(event, context):
         )
     else:
         # TODO: Implement update and make success less permissive
+        print("NOT IMPLEMENTED: CloudFormation stack update with param changes")
         return cfnresponse.send(
             event,
             context,
@@ -265,19 +267,25 @@ def delete_stack_handler(event, context):
     print(f"Detaching from identity pool {identity_pool_id}")
     print(f"Detaching AWSIoTConfigAccess and AWSIoTDataAccess from authenticated role")
     try:
-        # TODO: Succeed if the identity pool or role has already been deleted
         identity_pool_roles = cognito_identity.get_identity_pool_roles(IdentityPoolId=identity_pool_id)
         authenticated_role_arn = identity_pool_roles["Roles"]["authenticated"]
         authenticated_role_name = authenticated_role_arn.rpartition("/")[2]
-        # TODO: Does this raise an exception if already detached?
-        iam.detach_role_policy(
-            RoleName=authenticated_role_name,
-            PolicyArn="arn:aws:iam::aws:policy/AWSIoTConfigAccess",
-        )
-        iam.detach_role_policy(
-            RoleName=authenticated_role_name,
-            PolicyArn="arn:aws:iam::aws:policy/AWSIoTDataAccess",
-        )
+        try:
+            iam.detach_role_policy(
+                RoleName=authenticated_role_name,
+                PolicyArn="arn:aws:iam::aws:policy/AWSIoTConfigAccess",
+            )
+        except iam.exceptions.NoSuchEntityException:
+            pass
+        try:
+            iam.detach_role_policy(
+                RoleName=authenticated_role_name,
+                PolicyArn="arn:aws:iam::aws:policy/AWSIoTDataAccess",
+            )
+        except iam.exceptions.NoSuchEntityException:
+            pass
+    except cognito_identity.exceptions.ResourceNotFoundException:
+        print(f"Identity pool not found - skipping: {identity_pool_id}")
     except Exception as e:
         try:
             print(identity_pool_roles)
