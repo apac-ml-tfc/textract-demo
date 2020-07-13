@@ -15,6 +15,7 @@ TODO: Uncomment the final IoT publishing step!
 import base64
 import gzip
 import json
+import os
 import time
 import traceback
 
