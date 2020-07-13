@@ -1,7 +1,9 @@
 <template>
   <div id="app">
     <div v-if="!signedIn">
-      <amplify-authenticator></amplify-authenticator>
+      <amplify-authenticator>
+        <amplify-sign-in header-text="End-to-End OCR Demo" slot="sign-in"></amplify-sign-in>
+      </amplify-authenticator>
     </div>
     <div v-if="signedIn">
       <amplify-sign-out class="signout"></amplify-sign-out>
