@@ -15,12 +15,28 @@ TODO: Uncomment the final IoT publishing step!
 import base64
 import gzip
 import json
+import time
+import traceback
 
 # External Dependencies:
 import boto3
+from expiringdict import ExpiringDict
 
-
+ddb = boto3.resource("dynamodb")
 iot = boto3.client("iot-data")
+
+topic_prefix = "private"
+
+# The only resource ID we're guaranteed to get from Step Functions executions (e.g. if exiting with error) is
+# the Step Functions Execution ID. Because in our architecture executions are triggered *by an S3 upload*,
+# web clients *don't actually know* what executions they've kicked off - only what file they created. In
+# addition, our IoT topic permissions are partitioned by *Cognito Identity ID*, so we'll need that to push
+# execution progress notifications.
+#
+# Here we use a simple in-memory cache (because we're likely to get many events in quick succession if the
+# Lambda is warm) in front of a DynamoDB table (in case the Lambda goes cold).
+ownership_cache = ExpiringDict(max_len=200, max_age_seconds=60*60*24*7)
+ownership_table = ddb.Table(os.environ["EXECUTION_OWNERSHIP_TABLE_NAME"])
 
 
 def handler(event, context):
@@ -31,51 +47,89 @@ def handler(event, context):
     zipdata = base64.b64decode(event["awslogs"]["data"])
     payload_bytes = gzip.decompress(zipdata)
     payload = json.loads(payload_bytes)
-    print(payload)
 
     print("PROCESSING LOGS")
     for log in payload["logEvents"]:
         print(f"Processing log: {log}")
-        timestamp = log["timestamp"]
-        message = json.loads(log["message"])
-        message_type = message["type"]  # e.g. TaskStateEntered
-        execution_arn = message["execution_arn"]
+        try:
+            process_event(log)
+        except Exception as e:
+            traceback.print_exc()
+            print("ERROR: Uncaught error in log event processing, moving to next event")
+        
 
-        state_name = message["details"].get("name") if "State" in message_type else None
+def process_event(log):
+    timestamp = log["timestamp"]
+    message = json.loads(log["message"])
+    print(f"Log message: {message}")
+    message_type = message["type"]  # e.g. TaskStateEntered
+    execution_arn = message["execution_arn"]
 
-        notification = {
-            "executionArn": execution_arn,
-            "timestamp": timestamp,
-            "type": message_type,
-        }
+    notification = {
+        "executionArn": execution_arn,
+        "timestamp": timestamp,
+        "type": message_type,
+    }
 
-        if state_name:
-            notification["stateName"] = state_name
+    state_name = message["details"].get("name") if "State" in message_type else None
+    if state_name:
+        notification["stateName"] = state_name
 
-        topic_name = None
-
-        if "input" in message["details"]:
+    # Establish the ownership of the Execution:
+    cached_ownership = ownership_cache.get("execution_arn")
+    if cached_ownership is None:
+        # Does the event have sufficient details to interpret ownership?
+        try:
+            # TODO: Maybe more permissive scraping logic?
             sfn_input = json.loads(message["details"]["input"])
-
-            # Try to get the raw image location from the location it appears in initial SFN triggered input:
+            identity_id = sfn_input \
+                ["detail"]["userIdentity"]["sessionContext"] \
+                ["webIdFederationData"]["attributes"]["cognito-identity.amazonaws.com:sub"]
             reqparams = sfn_input.get("detail", {}).get("requestParameters", {})
-            # ...Or else from the location the first state stores it which is usually preserved:
             preserved_input = sfn_input.get("Input", {})
             if "bucketName" in reqparams and "key" in reqparams:
-                topic_name = reqparams["bucketName"] + "/" + reqparams["key"]
+                s3_uri = f"s3://{reqparams['bucketName']}/{reqparams['key']}"
             elif "Bucket" in preserved_input and "Key" in preserved_input:
-                topic_name = preserved_input["Bucket"] + "/" + preserved_input["Key"]
+                s3_uri = f"s3://{preserved_input['Bucket']}/{preserved_input['Key']}"
             else:
-                print("WARNING: Couldn't recover correct topic name - using execution ARN")
-                topic_name = execution_arn
-        else:
-            print("WARNING: No input data recorded on event - using execution ARN")
-            topic_name = execution_arn
+                raise ValueError("Object S3 URI not available on event")
+            publish_to_ddb = True
+        except (KeyError, ValueError) as e:
+            # Nope - not in cache and event doesn't have enough information to trace.
+            # Try a DDB lookup to add to cache, otherwise we're stuffed:
+            ddb_fetch_response = ownership_table.get_item(Key={ "ExecutionId": execution_arn })
+            if "Item" in ddb_fetch_response:
+                identity_id = ddb_fetch_response["Item"]["IdentityId"]
+                s3_uri = ddb_fetch_response["Item"]["S3Uri"]
+                publish_to_ddb = False
+            else:
+                # FAIL - print error and move on to next message in queue
+                print("".join([
+                    "ERROR: Couldn't trace IdentityID and S3Uri from event payload or cache. ",
+                    f"Unable to notify {notification}",
+                ]))
+                return
 
-        print(f"Prepared notification for topic {topic_name}: {notification}")
+        ownership_cache[execution_arn] = {
+            "IdentityId": identity_id,
+            "S3Uri": s3_uri,
+        }
+        if publish_to_ddb:
+            ownership_table.put_item(
+                Item={
+                    "ExecutionId": execution_arn,
+                    "ExpiresAt": time.time() + 60*60*24*7,  # time.time is UTC epoch seconds
+                    "IdentityId": identity_id, 
+                    "S3Uri": s3_uri,
+                }
+            )
+    else:
+        identity_id = cached_ownership["IdentityId"]
+        s3_uri = cached_ownership["S3Uri"]
 
-        # iot.publish(
-        #     topic=, # TODO: How do we pick a topic_name that the client knows to listen to?
-        #     qos=1,
-        #     payload=json.dumps(notification)
-        # )
+    # Now that ownership is known, we can send our notification
+    notification["s3Uri"] = s3_uri
+
+    topic_name = f"{topic_prefix}/{identity_id}"
+    print(f"Prepared notification for topic {topic_name}: {notification}")
+    iot.publish(topic=topic_name, qos=1, payload=json.dumps(notification))

@@ -386,6 +386,21 @@ Resources:
 
 
 ##########  PROGRESS PUSH NOTIFICATIONS  ##########
+  TableExecutionOwnership:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      #TableName: Auto-generated
+      AttributeDefinitions:
+        - AttributeName: ExecutionId
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: ExecutionId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ExpiresAt
+        Enabled: true
+
   FunctionNotifySfnProgress:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -397,6 +412,9 @@ Resources:
       Runtime: python3.7
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
+      Environment:
+        Variables:
+          EXECUTION_OWNERSHIP_TABLE_NAME: !Ref TableExecutionOwnership
       # Layers:
       #   - !Ref CommonCodeLayer
 
@@ -440,10 +458,10 @@ Resources:
             Resource: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:client/${!cognito-identity.amazonaws.com:sub}'
           - Effect: Allow
             Action: 'iot:Subscribe'
-            Resource: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/ocr/${!cognito-identity.amazonaws.com:sub}'
+            Resource: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/private/${!cognito-identity.amazonaws.com:sub}'
           - Effect: Allow
             Action: 'iot:Receive'
-            Resource: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/ocr/${!cognito-identity.amazonaws.com:sub}'
+            Resource: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/private/${!cognito-identity.amazonaws.com:sub}'
 
   FunctionSetUpIotAuth:
     Type: 'AWS::Serverless::Function'
