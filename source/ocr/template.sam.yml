@@ -4,14 +4,26 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
 Parameters:
   UploadBucketName:
-    Description: The existing bucket which should be listened to for image uploads.
+    Description: >-
+      (Optional) existing bucket which should be listened to for image uploads. If blank a new bucket will be created.
     Type: String
     Default: ''
     # Removed the constraint when making the param optional:
     #AllowedPattern: "^[a-zA-Z][a-zA-Z0-9-.]*"
     #ConstraintDescription: Must be a valid S3 bucket name
+  CognitoIdentityPoolId:
+    Description: >-
+      (Optional) existing Cognito identity pool to configure with permissions for progress notifications via IoT Core.
+    Type: String
+    Default: ''
+  CognitoUserPoolId:
+    Description: >-
+      (Optional) existing Cognito user pool to configure with permissions for progress notifications via IoT Core.
+    Type: String
+    Default: ''
 Conditions:
   CreateUploadBucket: !Equals [!Ref UploadBucketName, '']
+  AttachToCognito: !And [!Not [!Equals [!Ref CognitoIdentityPoolId, '']], !Not [!Equals [!Ref CognitoUserPoolId, '']]]
 Resources:
 
   # Destination for uploads from client UI (objects trigger workflow)
@@ -412,3 +424,64 @@ Resources:
         $.type="WaitStateEntered" }
       LogGroupName: !Ref PipelineLogGroup
       #RoleArn:  # Not needed for Lambda function destinations
+
+  AmplifyIoTAccessPolicy:
+    Type: 'AWS::IoT::Policy'
+    Condition: AttachToCognito
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: 'iot:Connect'
+            # ${!...} is an escape so CloudFormation leaves ${iot:ClientId} to be interpreted by IoT. See:
+            # https://docs.aws.amazon.com/iot/latest/developerguide/basic-policy-variables.html and
+            # https://docs.aws.amazon.com/iot/latest/developerguide/pub-sub-policy.html
+            Resource: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:client/${!cognito-identity.amazonaws.com:sub}'
+          - Effect: Allow
+            Action: 'iot:Subscribe'
+            Resource: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/ocr/${!cognito-identity.amazonaws.com:sub}'
+          - Effect: Allow
+            Action: 'iot:Receive'
+            Resource: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/ocr/${!cognito-identity.amazonaws.com:sub}'
+
+  FunctionSetUpIotAuth:
+    Type: 'AWS::Serverless::Function'
+    Condition: AttachToCognito
+    Properties:
+      #FunctionName: We'll allow to auto-generate instead
+      Description: Attach IoT PubSub policies to Cognito users and authenticated roles
+      CodeUri: ./functions/setup-iot-auth/
+      Handler: main.handler
+      MemorySize: 256
+      Runtime: python3.7
+      Role: !GetAtt LambdaAdminRole.Arn
+      # Long timeout for CloudFormation resource setup, but note that Cognito Lambda triggers must respond within 5sec!
+      Timeout: 30
+      Environment:
+        Variables:
+          IOT_ACCESS_POLICY_NAME: !Ref AmplifyIoTAccessPolicy
+      # Layers:
+      #   - !Ref CommonCodeLayer
+
+  # Use FunctionSetUpIotAuth to:
+  # - Attach AWSIoTDataAccess and AWSIoTConfigAccess to the identity pool's authenticated role
+  # - Attach all identities in the pool to AmplifyIoTAccessPolicy
+  # - Set up a trigger whenever a new user is signed up
+  AuthorizeUsersForPubSub:
+    Type: 'Custom::SetUpIotAuth'
+    Condition: AttachToCognito
+    Properties:
+      ServiceToken: !GetAtt FunctionSetUpIotAuth.Arn
+      CognitoIdentityPoolId: !Ref CognitoIdentityPoolId
+      CognitoUserPoolId: !Ref CognitoUserPoolId
+      # We pass this in as *both* a CF resource param and a Lambda env var because the Lambda function may need the
+      # information for other invokations besides CF, but for edge-case CF calls (e.g. update stack) the resource prop
+      # should be authoritative:
+      IotAccessPolicyName: !Ref AmplifyIoTAccessPolicy
+
+
+Outputs:
+  InputBucketName:
+    Description: Input bucket to upload images for OCR
+    Value: !If [CreateUploadBucket, !Ref RawInputBucket, !Ref UploadBucketName]

@@ -6,6 +6,8 @@ AWS_BRANCH ?= "dev"
 STACK_NAME ?= "UNDEFINED"
 DEPLOYMENT_BUCKET_NAME ?= "UNDEFINED"
 UPLOAD_BUCKET_NAME ?= "UNDEFINED"
+COGNITO_IDENTITY_POOL_ID ?= "UNDEFINED"
+COGNITO_USER_POOL_ID ?= "UNDEFINED"
 
 target:
 	$(info ${HELP_MESSAGE})
@@ -26,7 +28,7 @@ delete.processing: ##=> Delete OCR processing service
 	aws cloudformation delete-stack --stack-name $${STACK_NAME}-processing-$${AWS_BRANCH}
 
 deploy.processing: ##=> Deploy OCR processing service using SAM
-	$(info [*] Packaging and deploying Booking service...)
+	$(info [*] Packaging and deploying OCR processing service...)
 	cd source/ocr && \
 		sam build \
 			--template template.sam.yml && \
@@ -39,7 +41,9 @@ deploy.processing: ##=> Deploy OCR processing service using SAM
 			--stack-name $${STACK_NAME}-processing-$${AWS_BRANCH} \
 			--capabilities CAPABILITY_IAM \
 			--parameter-overrides \
-				UploadBucketName=$${UPLOAD_BUCKET_NAME}
+				UploadBucketName=$${UPLOAD_BUCKET_NAME} \
+				CognitoIdentityPoolId=$${COGNITO_IDENTITY_POOL_ID} \
+				CognitoUserPoolId=$${COGNITO_USER_POOL_ID}
 		# 	BookingTable=/$${AWS_BRANCH}/service/amplify/storage/table/booking \
 		# 	FlightTable=/$${AWS_BRANCH}/service/amplify/storage/table/flight \
 		# 	CollectPaymentFunction=/$${AWS_BRANCH}/service/payment/function/collect \
