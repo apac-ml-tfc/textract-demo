@@ -119,7 +119,7 @@ def process_event(log):
             ownership_table.put_item(
                 Item={
                     "ExecutionId": execution_arn,
-                    "ExpiresAt": time.time() + 60*60*24*7,  # time.time is UTC epoch seconds
+                    "ExpiresAt": int(time.time() + 60*60*24*7),  # time.time is UTC epoch seconds
                     "IdentityId": identity_id, 
                     "S3Uri": s3_uri,
                 }
