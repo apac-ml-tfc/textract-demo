@@ -1,85 +1,56 @@
 <template>
   <div class="container">
-    
-    <div>
-      
-      <b-form-file
-        accept="image/*"
-        v-model="file"
-        :state="Boolean(file)"
-        placeholder="Choose a file or drop it here..."
-        drop-placeholder="Drop file here..."
-      ></b-form-file>
-      <!--<div class="mt-3">Selected file: {{ file ? file.name : '' }}</div>-->
-      <div v-if="pressed">
-        <b-progress :value="uploadprogress_loaded" :max="uploadprogress_total" show-value animated></b-progress>
-      </div>
-      <div v-if="file">
-        <b-button variant="success" :disabled="pressed" @click="uploadImage()">{{ pressed ? 'Uploading' : 'Upload' }}</b-button>
-      </div>
-      
-      <hr/>
-      
-      <div v-if="uploadresult.s3objectkey">
-
-        <b-container class="bv-example-row">
-          <b-row>
-            <b-col>
-              <b-img thumbnail fluid :src="s3objecturl" :alt="uploadresult.s3objectkey"></b-img>
-            </b-col>
-            <b-col>
-              
-              <div class="container">
-                <div class="row">
-                  <div class="col-sm text-right">
-                    Status:
-                  </div>
-                  <div class="col-sm text-left">
-                    {{ocrstatus}}
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="col-sm text-right">
-                    File:
-                  </div>
-                  <div class="col-sm text-left">
-                    {{uploadresult.s3objectkey}}
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="col-sm text-right">
-                    Vendor:
-                  </div>
-                  <div class="col-sm text-left font-weight-bold">
-                    {{ocrresult.vendor}}
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="col-sm text-right">
-                    Date:
-                  </div>
-                  <div class="col-sm text-left font-weight-bold">
-                    {{ocrresult.date}}
-                  </div>
-                </div>
-                <div class="row">
-                  <div class="col-sm text-right">
-                    Total:
-                  </div>
-                  <div class="col-sm text-left font-weight-bold">
-                    {{ocrresult.total}}
-                  </div>
-                </div>
-              </div>
-              
-            </b-col>
-          </b-row>
-        </b-container>
-        
-      </div>
-      
+    <b-form-file
+      accept="image/*"
+      v-model="file"
+      :state="Boolean(file)"
+      placeholder="Choose a file or drop it here..."
+      drop-placeholder="Drop file here..."
+    ></b-form-file>
+    <!--<div class="mt-3">Selected file: {{ file ? file.name : '' }}</div>-->
+    <div v-if="pressed">
+      <b-progress :value="uploadprogress_loaded" :max="uploadprogress_total" show-value animated></b-progress>
+    </div>
+    <div v-if="file">
+      <b-button variant="success" :disabled="pressed" @click="uploadImage()">{{ pressed ? 'Uploading' : 'Upload' }}</b-button>
     </div>
     
+    <hr/>
+
+    <b-container v-if="uploadresult.s3objectkey" class="bv-example-row">
+      <b-row>
+        <b-col>
+          <b-img thumbnail fluid :src="s3objecturl" :alt="uploadresult.s3objectkey"></b-img>
+        </b-col>
+        <b-col>
+
+          <b-container fluid>
+            <b-row>
+              <b-col class="text-right">Status:</b-col>
+              <b-col class="text-left">{{ocrstatus}}</b-col>
+            </b-row>
+            <b-row>
+              <b-col class="text-right">File:</b-col>
+              <b-col class="text-left">{{uploadresult.s3objectkey}}</b-col>
+            </b-row>
+            <b-row>
+              <b-col class="text-right">Vendor:</b-col>
+              <b-col class="text-left font-weight-bold">{{ocrresult.vendor}}</b-col>
+            </b-row>
+            <b-row>
+              <b-col class="text-right">Date:</b-col>
+              <b-col class="text-left font-weight-bold">{{ocrresult.date}}</b-col>
+            </b-row>
+            <b-row>
+              <b-col class="text-right">Total:</b-col>
+              <b-col class="text-left font-weight-bold">{{ocrresult.total}}</b-col>
+            </b-row>
+          </b-container>
+
+        </b-col>
+      </b-row>
+    </b-container>
+
   </div>
 </template>
 
@@ -91,7 +62,7 @@ import { AWSIoTProvider } from '@aws-amplify/pubsub/lib/Providers'
 import { Storage } from 'aws-amplify'
 
 //Amplify.Logger.LOG_LEVEL = 'VERBOSE'
-const logger = new Logger('SmartOCR', 'INFO') // INFO, DEBUG, VERBOSE
+const logger = new Logger('SmartOCR', 'DEBUG'); // INFO, DEBUG, VERBOSE
 
 const IMAGEUPLOADPATH = ''
 const photoPickerConfig = {
@@ -102,6 +73,8 @@ const photoPickerConfig = {
 }
 const AWS_PUBSUB_REGION = process.env.VUE_APP_PUBSUB_REGION;
 const AWS_PUBSUB_ENDPOINT = `wss://${process.env.VUE_APP_PUBSUB_ENDPOINT}/mqtt`;
+
+logger.debug(`Connecting to ${AWS_PUBSUB_ENDPOINT} (${AWS_PUBSUB_REGION})`);
 
 export default {
   name: 'SmartOCR',
