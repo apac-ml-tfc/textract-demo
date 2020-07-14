@@ -1,11 +1,29 @@
-# CloudFormation for End-to-end Textract demo
-# TODO: Consider splitting out stacks for individual pipeline stages for clarity
 AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  OCR processing stack for the End-to-End Textract demo; including pre-processing, Textract integration,
+  post-processing, human review, UI output/notifications, and process orchestration.
+# TODO: Consider splitting out stacks for individual pipeline stages for clarity
 Transform: 'AWS::Serverless-2016-10-31'
 Parameters:
+  RekognitionModelArn:
+    Description: >-
+      ARN of a Rekognition Custom Labels classifier model for pre-processing images. You may leave this blank and
+      manually configure via FunctionPreProcess Lambda environment variable later, but all requests will fail at the
+      pre-processing stage until it's set up.
+    Type: String
+    # TODO: Link some other way through Amplify and clear this to empty default
+    Default: 'arn:aws:rekognition:us-east-1:077546553367:project/unicorn-gym-custom-label/version/unicorn-gym-custom-label.2020-06-08T13.55.38/1591599339120'
+  DefaultHumanFlowArn:
+    Description: >-
+      ARN of an Amazon A2I workflow for human review of (post-processed) extractions. You may leave this blank and
+      manually configure via FunctionStartHumanReview Lambda environment variable later, but all requests deemed to
+      require human review will fail at the human review stage until it's set up.
+    Type: String
+    # TODO: Link some other way through Amplify and clear this to empty default
+    Default: ''
   UploadBucketName:
     Description: >-
-      (Optional) existing bucket which should be listened to for image uploads. If blank a new bucket will be created.
+      (Optional) existing bucket which should be listened to for image uploads. If blank, a new bucket will be created.
     Type: String
     Default: ''
     # Removed the constraint when making the param optional:
@@ -14,18 +32,41 @@ Parameters:
   CognitoIdentityPoolId:
     Description: >-
       (Optional) existing Cognito identity pool to configure with permissions for progress notifications via IoT Core.
+      If omitted, some notification components will not be provisioned.
     Type: String
     Default: ''
   CognitoUserPoolId:
     Description: >-
-      (Optional) existing Cognito user pool to configure with permissions for progress notifications via IoT Core.
+      (Optional) existing Cognito user pool to listen for new sign-ups and add notification permissions. If omitted,
+      new sign-ups will require external/manual permissions configuration.
+
+      TODO: This sign-up monitoring functionality doesn't actually work yet anyway!
     Type: String
     Default: ''
+Metadata:
+  AWS::CloudFormation::Interface: 
+    ParameterGroups:
+      - Label:
+          default: "External Components"
+        Parameters:
+          - RekognitionModelArn
+          - DefaultHumanFlowArn
+      - Label:
+          default: "(Optional) Input Integration"
+        Parameters:
+          - UploadBucketName
+      - Label:
+          default: "(Optional) Output Integration"
+        Parameters:
+          - CognitoIdentityPoolId
+          - CognitoUserPoolId
+    # ParameterLabels: We'll leave the labels as just the raw param names
 Conditions:
   CreateUploadBucket: !Equals [!Ref UploadBucketName, '']
-  AttachToCognito: !And [!Not [!Equals [!Ref CognitoIdentityPoolId, '']], !Not [!Equals [!Ref CognitoUserPoolId, '']]]
+  AttachToCognito: !Not [!Equals [!Ref CognitoIdentityPoolId, '']]
 Resources:
 
+##########  CORE DATA STORES  ##########
   # Destination for uploads from client UI (objects trigger workflow)
   RawInputBucket:
     Type: AWS::S3::Bucket
@@ -102,7 +143,7 @@ Resources:
     Properties:
       #FunctionName: We'll allow to auto-generate instead
       Description: Pre-process an image in S3
-      CodeUri: ./functions/preprocess/
+      CodeUri: ./preprocessing/fn-preprocess/
       Handler: main.handler
       MemorySize: 256
       Runtime: python3.7
@@ -112,7 +153,7 @@ Resources:
         Variables:
           # TODO: Parameterize
           LAMBDA_ENHANCED_IMAGE_ARN: 'arn:aws:lambda:us-east-1:077546553367:function:nutchanon-preprocessing:$LATEST'
-          REKOGNITION_MODEL_ARN: 'arn:aws:rekognition:us-east-1:077546553367:project/unicorn-gym-custom-label/version/unicorn-gym-custom-label.2020-06-08T13.55.38/1591599339120'
+          REKOGNITION_MODEL_ARN: !Ref RekognitionModelArn
       # Layers:
       #   - !Ref CommonCodeLayer
 
@@ -123,7 +164,7 @@ Resources:
     Properties:
       #FunctionName: We'll allow to auto-generate instead'
       Description: Process an artifact with Textract
-      CodeUri: ./functions/call-textract/
+      CodeUri: ./textract-integration/fn-call-textract/
       Handler: main.handler
       MemorySize: 256
       Runtime: python3.7
@@ -142,7 +183,7 @@ Resources:
     Properties:
       #FunctionName: We'll allow to auto-generate instead
       Description: Post-process Textract results into business-level fields
-      CodeUri: ./functions/postprocess/
+      CodeUri: ./postprocessing/fn-postprocess/
       Handler: main.handler
       MemorySize: 256
       Runtime: python3.7
@@ -158,12 +199,15 @@ Resources:
     Properties:
       #FunctionName: We'll allow to auto-generate instead
       Description: Kick off an A2I human loop
-      CodeUri: ./functions/start-human-review/
+      CodeUri: ./human-review/fn-start-human-review/
       Handler: main.handler
       MemorySize: 256
       Runtime: python3.7
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
+      Environment:
+        Variables:
+          DEFAULT_FLOW_DEFINITION_ARN: !Ref DefaultHumanFlowArn
       # Layers:
       #   - !Ref CommonCodeLayer
 
@@ -172,7 +216,7 @@ Resources:
     Properties:
       #FunctionName: We'll allow to auto-generate instead
       Description: Process and notify results of a completed human loop
-      CodeUri: ./functions/human-review-callback/
+      CodeUri: ./human-review/fn-human-review-callback/
       Handler: main.handler
       MemorySize: 256
       Runtime: python3.7
@@ -184,6 +228,7 @@ Resources:
       # Layers:
       #   - !Ref CommonCodeLayer
 
+  # Grant permission for the A2I reviews output bucket to trigger the callback Lambda:
   HumanReviewCallbackPermission:
     Type: 'AWS::Lambda::Permission'
     Properties:
@@ -197,7 +242,7 @@ Resources:
       #SourceArn: !Sub 'arn:aws:s3:::${HumanReviewsBucket}'
 
 
-##########  STATE MACHINE ORCHESTRATOR FOR THE PROCESS  ##########
+##########  PROCESS ORCHESTRATION  ##########
   StepFunctionsXRayAccessPolicy:
     # (As created by default in StepFunctions console)
     Type: 'AWS::IAM::ManagedPolicy'
@@ -257,12 +302,14 @@ Resources:
         - !Ref StepFunctionsXRayAccessPolicy
         - !Ref CloudWatchLogsDeliveryFullAccessPolicy
 
+  # We'll trigger our push notifications from CloudWatch events, so need to set up SFn logging:
   PipelineLogGroup:
     Type: AWS::Logs::LogGroup
     # Properties:
     #   LogGroupName: # The default naming isn't too bad
     #   RetentionInDays: # 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653
 
+  # The AWS Step Functions state machine that orchestrates the stages of OCR processing:
   PipelineStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
@@ -280,14 +327,17 @@ Resources:
           - CloudWatchLogsLogGroup: 
               LogGroupArn: !GetAtt PipelineLogGroup.Arn
         IncludeExecutionData: true
-        Level: ALL  # or ERROR, FATAL, OFF (default)
+        Level: ALL  # Needed for push notifications - otherwise could use ERROR, FATAL, OFF (default)
       Role: !GetAtt StepFunctionAdminRole.Arn
       Type: STANDARD
 
 
-##########  TRIGGERING THE STATE MACHINE FROM INPUT IMAGES  ##########
-  # We'll use S3 trigger to kick off our state machine, but let the state machine handle the rest of the orchestration.
-  # Note that the workflow could be built-up from point-integrations instead: e.g. each step triggering the next.
+##########  INPUT INTEGRATION (TRIGGERING THE STEP FUNCTION)  ##########
+# We'll use S3 trigger to kick off our state machine, but let the state machine handle the rest of the orchestration.
+# Note that the workflow could be built-up from point-integrations instead: e.g. each step triggering the next.
+
+  # Triggering a SFn from S3 is a little different to triggering a Lambda (as we do for human review callback) - we
+  # need to do it via CloudTrail. First create a CloudTrail log storage bucket and give CloudTrail access to it...
   InputCloudTrailBucket:
     Type: AWS::S3::Bucket
 
@@ -314,6 +364,7 @@ Resources:
               StringEquals:
                 's3:x-amz-acl': 'bucket-owner-full-control'
 
+  # ...Then set up CloudTrail logging events from the input bucket to the CloudTrail bucket:
   RawInputTrail:
     Type: AWS::CloudTrail::Trail
     DependsOn:
@@ -335,6 +386,8 @@ Resources:
       #S3KeyPrefix: Might be useful to scope down?
       #TrailName: Use default
 
+  # Finally create an execution role (with permission to actually start the Step Function) and the rule itself, to
+  # start an execution every time an image/object is put in the input bucket.
   AmazonCloudWatchEventRole:
     Type: AWS::IAM::Role
     Properties:
@@ -386,6 +439,15 @@ Resources:
 
 
 ##########  PROGRESS PUSH NOTIFICATIONS  ##########
+# Step Functions has great DescribeExecution and GetExecutionHistory APIs for querying the state of an execution, but
+# we have some tricky requirements here:
+#
+# - We'd like to push notifications out, rather than poll
+# - Because the SFn execution is started automatically by S3 object upload, the client *doesn't actually know* their
+#   Step Functions execution ID
+# - We'd like to give authenticated Cognito identities information about *only their own* uploads
+
+  # We'll use a DynamoDB table to track SFn Execution IDs to the Cognito Identities that initiated them:
   TableExecutionOwnership:
     Type: 'AWS::DynamoDB::Table'
     Properties:
@@ -401,12 +463,14 @@ Resources:
         AttributeName: ExpiresAt
         Enabled: true
 
+  # This Lambda function will listen to the CloudWatch Event stream of the Step Functions state machine, and generate
+  # IoT notifications on the correct (Cognito Identity-specific) topics.
   FunctionNotifySfnProgress:
     Type: 'AWS::Serverless::Function'
     Properties:
       #FunctionName: We'll allow to auto-generate instead
       Description: Send push notifications when Step Functions log indicates state transition
-      CodeUri: ./functions/notify-sfn-progress/
+      CodeUri: ./ui-notifications/fn-notify-progress/
       Handler: main.handler
       MemorySize: 256
       Runtime: python3.7
@@ -427,6 +491,8 @@ Resources:
       SourceAccount: !Ref AWS::AccountId
       SourceArn: !GetAtt PipelineLogGroup.Arn
 
+  # Step Functions generate loads of events, so we'll just listen to the significant ones: overall Execution start/stop
+  # and entries to a new State (step in the flow).
   SfnProgressSubscriptionFilter:
     Type: 'AWS::Logs::SubscriptionFilter'
     DependsOn:
@@ -443,6 +509,9 @@ Resources:
       LogGroupName: !Ref PipelineLogGroup
       #RoleArn:  # Not needed for Lambda function destinations
 
+##########  ACCESS CONTROL FOR PROGRESS PUSH NOTIFICATIONS  ##########
+
+  # Every Cognito identity (i.e. user) needs to be specifically added as a principal to an IoT access policy:
   AmplifyIoTAccessPolicy:
     Type: 'AWS::IoT::Policy'
     Condition: AttachToCognito
@@ -463,13 +532,15 @@ Resources:
             Action: 'iot:Receive'
             Resource: !Sub 'arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/private/${!cognito-identity.amazonaws.com:sub}'
 
+  # This Lambda will double as both a CloudFormation Custom Resource (to set up permissions for existing identities on
+  # stack create/update/delete) and a callable Lambda to configure the permissions for a new identity.
   FunctionSetUpIotAuth:
     Type: 'AWS::Serverless::Function'
     Condition: AttachToCognito
     Properties:
       #FunctionName: We'll allow to auto-generate instead
       Description: Attach IoT PubSub policies to Cognito users and authenticated roles
-      CodeUri: ./functions/setup-iot-auth/
+      CodeUri: ./ui-notifications/fn-setup-iot-auth/
       Handler: main.handler
       MemorySize: 256
       Runtime: python3.7
