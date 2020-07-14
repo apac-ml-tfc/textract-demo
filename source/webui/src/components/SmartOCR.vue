@@ -56,6 +56,15 @@
       </b-row>
     </b-container>
 
+    <hr v-if="events && events.length"/>
+    <b-container v-if="events && events.length">
+      <b-row>
+        <b-col>
+          <h3 style="margin-bottom: 10px;">Processing History</h3>
+          <b-table striped :items="events" :fields="event_fields"></b-table>
+        </b-col>
+      </b-row>
+    </b-container>
   </div>
 </template>
 
@@ -81,6 +90,14 @@ const AWS_PUBSUB_ENDPOINT = `wss://${process.env.VUE_APP_PUBSUB_ENDPOINT}/mqtt`;
 
 logger.debug(`Connecting to ${AWS_PUBSUB_ENDPOINT} (${AWS_PUBSUB_REGION})`);
 
+/**
+ * Render a (numeric) timestamp to a (nicely sortable, compact) ISO string in local timezone
+ */
+function tsToLocalISOString(ts) {
+  const tzoffset = new Date().getTimezoneOffset() * 60000;
+  return new Date(ts - tzoffset).toISOString();
+}
+
 export default {
   name: 'SmartOCR',
   props: {
@@ -89,6 +106,12 @@ export default {
   data () {
     return {
       errorMsg: null,
+      event_fields: [
+        { key: "timestamp", sortable: true },
+        { key: "eventType" },
+        { key: "state" },
+      ],
+      events: [],
       resultMsg: null,
       photoPickerConfig,
       file: null,
@@ -114,6 +137,7 @@ export default {
       if (this.file) {
         this.ocrstatus = 'Uploading...'
         this.errorMsg = null;
+        this.events = [];
         this.resultMsg = null;
         this.pressed = true
         this.uploadresult = {}
@@ -218,6 +242,13 @@ export default {
         } else if (this.ocrstatus == 'Starting...') {
           this.ocrstatus = 'RUNNING';
         }
+
+        // TODO: Improve out-of-order event processing to establish a more robust history.
+        this.events.unshift({
+          timestamp: tsToLocalISOString(data.value.timestamp),
+          eventType: data.value.type,
+          state: data.value.stateName,
+        })
       } else {
         logger.info('Discarded outdated message');
       }
