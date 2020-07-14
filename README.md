@@ -51,11 +51,8 @@ The [Amplify build settings](https://docs.aws.amazon.com/amplify/latest/userguid
 └── Makefile                  [Detailed build commands, to simplify amplify.yml]
 ```
 
-{{#note}}
-
-For details on each component, check the READMEs in their subfolders!
-
-{{/note}}
+|`NOTE` | For details on each component, check the READMEs in their subfolders! |
+|-|-|
 
 
 ## Deploying the Solution
