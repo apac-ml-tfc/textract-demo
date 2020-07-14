@@ -11,10 +11,9 @@
     <div v-if="pressed">
       <b-progress :value="uploadprogress_loaded" :max="uploadprogress_total" show-value animated></b-progress>
     </div>
-    <div v-if="file">
-      <b-button variant="success" :disabled="pressed" @click="uploadImage()">{{ pressed ? 'Uploading' : 'Upload' }}</b-button>
-    </div>
-    
+    <b-button v-if="file" variant="success" :disabled="pressed" @click="uploadImage()" style="margin-top: 10px;"
+      >{{ pressed ? 'Uploading' : 'Upload' }}</b-button>
+    <b-alert :show="!!errorMsg" variant="danger">{{errorMsg}}</b-alert>
     <hr/>
 
     <b-container v-if="uploadresult.s3objectkey" class="bv-example-row">
@@ -31,21 +30,27 @@
             </b-row>
             <b-row>
               <b-col class="text-right">File:</b-col>
-              <b-col class="text-left">{{uploadresult.s3objectkey}}</b-col>
+              <b-col class="text-left" style="overflow-wrap: break-word;">{{uploadresult.s3objectkey}}</b-col>
             </b-row>
             <b-row>
               <b-col class="text-right">Vendor:</b-col>
-              <b-col class="text-left font-weight-bold">{{ocrresult.vendor}}</b-col>
+              <b-col class="text-left font-weight-bold">{{ocrresult.Vendor && ocrresult.Vendor.Value}}</b-col>
             </b-row>
             <b-row>
               <b-col class="text-right">Date:</b-col>
-              <b-col class="text-left font-weight-bold">{{ocrresult.date}}</b-col>
+              <b-col class="text-left font-weight-bold">{{ocrresult.Date && ocrresult.Date.Value}}</b-col>
             </b-row>
             <b-row>
               <b-col class="text-right">Total:</b-col>
-              <b-col class="text-left font-weight-bold">{{ocrresult.total}}</b-col>
+              <b-col class="text-left font-weight-bold">{{ocrresult.Total && ocrresult.Total.Value}}</b-col>
+            </b-row>
+            <b-row v-if="ocrresult.Reviewer">
+              <b-col class="text-right">Reviewer:</b-col>
+              <b-col class="text-left font-weight-bold">{{ocrresult.Reviewer}}</b-col>
             </b-row>
           </b-container>
+          <hr v-if="resultMsg"/>
+          <b-alert :show="!!resultMsg">{{resultMsg}}</b-alert>
 
         </b-col>
       </b-row>
@@ -83,12 +88,14 @@ export default {
   },
   data () {
     return {
+      errorMsg: null,
+      resultMsg: null,
       photoPickerConfig,
       file: null,
       pressed: false,
       s3objecturl: null,
       uploadresult: {},
-      identityId: null,
+      lastUpdateTs: -Infinity,
       OCRTopicPrefix: 'private',
       uploadprogress_loaded: 0,
       uploadprogress_total: 100,
@@ -99,11 +106,15 @@ export default {
   },
   mounted () {
     logger.info('mounted')
+    // Since it's just one topic per user, we can start the subscription process before even uploading:
+    this.subscribeNotifications();
   },
   methods: {
     uploadImage: async function () {
       if (this.file) {
         this.ocrstatus = 'Uploading...'
+        this.errorMsg = null;
+        this.resultMsg = null;
         this.pressed = true
         this.uploadresult = {}
         this.ocrresult = {}
@@ -128,70 +139,137 @@ export default {
       logger.info('upload success. S3objectkey:', this.uploadresult)
       
       this.fetchImage(this.uploadresult.s3objectkey)
-      this.ocrstatus = 'OCR...'
+      this.ocrstatus = 'Starting...';
       
-      // listen for pubsub topic for OCR results
-      this.subscribeOCRTopic()
-      
+      // Init subscription again in case it failed on mount and re-trying succeeds:
+      this.subscribeNotifications();
     },
     fetchImage: async function (key) {
       this.s3objecturl = await Storage.get(key, { level: 'private' })
       logger.debug('s3objecturl:',this.s3objecturl)
     },
-    subscribeOCRTopic: async function () {
-      logger.debug('subscribed:', this.subscribed)
-      if (!this.subscribed) {
-
-        const creds = await Auth.currentCredentials();
-        this.identityId = creds.identityId;
-        logger.debug('cognitoIdentityId: ', this.identityId);
-
-        logger.debug('Adding AWSIoTProvider')
-        Amplify.addPluggable(new AWSIoTProvider({
-          aws_pubsub_region: AWS_PUBSUB_REGION,
-          aws_pubsub_endpoint: AWS_PUBSUB_ENDPOINT,
-          clientId: this.identityId,
-        }))
-        
-        const topic = this.OCRTopicPrefix + '/' + this.identityId
-        logger.debug('topic:', topic)
- 
-        /*
-        topic: private/us-east-1:073c31fb-efea-434d-ac4c-caccbce7d42a
-        
-        Current design is to subcribe to a topic for the authenticated user hence only subscribe once per session.
-        Alternate design is to use the s3objectkey as topic, and unsub/sub again per uploads.
-        
-        TODO: unsub topic upon logout
-        
-        message:
-        {
-           "bucket":"smartocr-uploads31839-dev",
-           "id":"private/us-east-1:073c31fb-efea-434d-ac4c-caccbce7d42a",
-           "key":"private/us-east-1:073c31fb-efea-434d-ac4c-caccbce7d42a/X51008099047_canocr.jpg",
-           "status":"Completed",   // "Completed", "Pending human review"
-           "result":{
-              "vendor":"XYZ co",
-              "date":"1/1/2020",
-              "total":"123.45"
-           }
-        }
-        */
-        PubSub.subscribe(topic, { provider: 'AWSIoTProvider' }).subscribe({
-          next: data => {
-            logger.info('Message received', data)
-            this.ocrstatus = data.value.status
-            if (this.ocrstatus.toLowerCase()=="completed") {
-              this.ocrresult = data.value.result
-              logger.debug('this.ocrresult', this.ocrresult)
+    /**
+     * Process notifications from the IoT topic to update component view
+     * 
+     * What we receive is basically AWS Step Functions event objects, with a little pre-processing. There's
+     * loads more we could do with this function, or more of the heavy lifting could be shifted to the 
+     * notify-sfn-progress Lambda which generates IoT messages from SFn events, to keep the messages small
+     * and the client simple.
+     */
+    processNotification: function (data) {
+      logger.info('Message received', data);
+      // Check for recency in case messages arrive out-of-order:
+      if ((data.value.timestamp >= this.lastUpdateTs) || !data.value.timestamp) {
+        if (data.value.type == 'ExecutionSucceeded') {
+          this.ocrstatus = 'SUCCEEDED';
+          try {
+            const output = JSON.parse(data.value.details.output);
+            if (output.HumanReview) {
+              ['Date', 'Total', 'Vendor'].forEach((k) => {
+                this.ocrresult[k] = {
+                  Confidence: output.HumanReview[k] ? 1 : 0,
+                  Value: output.HumanReview[k],
+                };
+              });
+              if (output.HumanReview.WorkerId) this.ocrresult.Reviewer = output.HumanReview.WorkerId;
+              this.ocrresult.Confidence = 1;
+              this.resultMsg = 'Processed successfully with human review';
+            } else if (output.ModelResult) {
+              this.ocrresult = output.ModelResult;
+              this.resultMsg = 'Processed successfully with model only (no review required)';
             } else {
-              this.ocrresult = ''
+              throw new Error(
+                "Neither HumanReview nor ModelResult key found on 'successful' state machine output"
+              );
             }
-          },
-          error: error => logger.error(error),
-          close: () => logger.info('Done'),
-        });
-        this.subscribed = true
+          } catch (err) {
+            logger.error(err);
+            this.resultMsg = "Execution succeeded, but wasn't able to extract result from the notification!";
+          }
+        } else if (data.value.type.startsWith('Execution') && data.value.type != 'ExecutionStarted') {
+          this.ocrstatus = `FAILED - ${data.value.type}`;
+          // Build up a result message from error & cause information if present:
+          this.resultMsg = data.value.details.error || '';
+          if (data.value.details.cause) {
+            // 'cause' might be a simple string (generated by Sfn itself) or a JSON string (generated by a
+            // called Lambda function)
+            let causeMsg;
+            try {
+              const parsedCause = JSON.parse(data.value.details.cause);
+              if (parsedCause && typeof parsedCause === 'object') {
+                const causeMsgKey = Object.keys(parsedCause).find(
+                  (k) => k.toLowerCase().indexOf('message') >= 0
+                );
+                causeMsg = causeMsgKey ? parsedCause[causeMsgKey] : parsedCause;
+              } else {
+                causeMsg = parsedCause;  // At least it parsed, so keep that
+              }
+            } catch (err) {
+              causeMsg = data.value.details.cause;
+            }
+            if (this.resultMsg) {
+              this.resultMsg = `${this.resultMsg}: ${causeMsg}`;
+            } else {
+              this.resultMsg = data.value.details.cause;
+            }
+          }
+        } else if (data.value.stateName) {
+          this.ocrstatus = `RUNNING - ${data.value.stateName}`;
+        } else if (this.ocrstatus == 'Starting...') {
+          this.ocrstatus = 'RUNNING';
+        }
+      } else {
+        logger.info('Discarded outdated message');
+      }
+    },
+    subscribeNotifications: async function () {
+      if (!this.subscribed) {
+        logger.debug('Subscribing to notifications...');
+        try {
+          const creds = await Auth.currentCredentials();
+          logger.debug('cognitoIdentityId: ', creds.identityId);
+
+          logger.debug('Adding AWSIoTProvider');
+          Amplify.addPluggable(new AWSIoTProvider({
+            aws_pubsub_region: AWS_PUBSUB_REGION,
+            aws_pubsub_endpoint: AWS_PUBSUB_ENDPOINT,
+            clientId: creds.identityId,
+          }));
+
+          const topic = this.OCRTopicPrefix + '/' + creds.identityId;
+          logger.debug('topic:', topic);
+
+          /*
+          Current design is to subcribe to a topic for the authenticated user hence only subscribe once per
+          session. Alternate design is to use the s3objectkey as topic, and unsub/sub again per uploads.
+
+          TODO: unsub topic upon logout
+          */
+         const me = this;
+         logger.info(me);
+          PubSub.subscribe(topic, { provider: 'AWSIoTProvider' }).subscribe({
+            next: data => {
+              me.subscribed = true;  // In case we get an error but then continue receiving messages
+              me.processNotification(data);
+            },
+            error: error => {
+              logger.error(error);
+              me.errorMsg = 'Error from notifications service - updates may not display';
+              me.subscribed = false;  // Sometimes this is all the error we get to indicate it's broken
+            },
+            close: () => {
+              logger.warn('Disconnected');
+              me.subscribed = false;
+            },
+          });
+          this.subscribed = true;
+        } catch (err) {
+          logger.error(err);
+          logger.warn("Can't connect to notifications service - updates will not display");
+          this.errorMsg = "Can't connect to notifications service - updates will not display";
+        }
+      } else {
+        logger.debug('Already subscribed to notifications');
       }
     },
   }
