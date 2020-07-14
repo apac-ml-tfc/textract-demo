@@ -70,6 +70,8 @@ def process_event(log):
         "executionArn": execution_arn,
         "timestamp": timestamp,
         "type": message_type,
+        # Pass through raw details too - IoT message quota bigger than SFn data size quota.
+        "details": message["details"],
     }
 
     state_name = message["details"].get("name") if "State" in message_type else None
