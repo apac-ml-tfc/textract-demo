@@ -100,7 +100,7 @@ amplify push
 
 #### Obtain the IoT Core endpoint
 ```
-aws iot describe-endpoint
+aws iot describe-endpoint --endpoint-type iot:Data-ATS
 ```
 Update the region and endpoint values in <b>src/SmartOCR.vue</b>
 ```
