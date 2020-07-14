@@ -141,15 +141,17 @@ export default {
         this.resultMsg = null;
         this.pressed = true
         this.uploadresult = {}
+        this.uploadprogress_loaded = 0;
+        this.uploadprogress_total = 100;
         this.ocrresult = {}
-        const foo = this
+        const me = this;
         logger.info('uploading image', this.file.name, this.file.type)
         await Storage.put(IMAGEUPLOADPATH + this.file.name, this.file, {
             level: 'private',
             contentType: this.file.type,
             progressCallback(progress) {
-              foo.uploadprogress_loaded = progress.loaded
-              foo.uploadprogress_total = progress.total
+              me.uploadprogress_loaded = progress.loaded;
+              me.uploadprogress_total = progress.total;
             },
         })
         .then (putresult => this.uploadSuccess(putresult))
