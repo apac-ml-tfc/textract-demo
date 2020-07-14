@@ -56,7 +56,7 @@
           <crowd-checkbox name="date-present" value="checked" checked style="flex: 0 0 auto; padding-top: 16px;" onclick="handleCheckBoxClick(this);"></crowd-checkbox>
           <crowd-input name="date" label="Date" value="{{ task.input.date.value }}" placeholder="YYYY-MM-DD" required style="flex: 1 0 auto;"></crowd-input>
         </div>
-        <div style="display: flex; align-items: center; margin: 4px 0px; padding: 0px 4px; background: linear-gradient(90deg, rgba(63,81,181,0.1) 0%, rgba(63,81,181,0.1) {{ task.input.total.confidence }}%%, rgba(63,81,181,0) {{ task.input.total.confidence }}%, rgba(63,81,181,0) 100%);">
+        <div style="display: flex; align-items: center; margin: 4px 0px; padding: 0px 4px; background: linear-gradient(90deg, rgba(63,81,181,0.1) 0%, rgba(63,81,181,0.1) {{ task.input.total.confidence }}%, rgba(63,81,181,0) {{ task.input.total.confidence }}%, rgba(63,81,181,0) 100%);">
           <crowd-checkbox name="total-present" value="checked" checked style="flex: 0 0 auto; padding-top: 16px;" onclick="handleCheckBoxClick(this);"></crowd-checkbox>
           <crowd-input name="total" label="Total" value="{{ task.input.total.value }}" required style="flex: 1 0 auto;"></crowd-input>
         </div>
