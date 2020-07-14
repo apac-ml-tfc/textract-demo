@@ -27,8 +27,8 @@ cognito_identity = boto3.client("cognito-identity")
 cognito_idp = boto3.client("cognito-idp")
 
 # We pass this in as *both* a CF resource param and a Lambda env var because the Lambda function may need the
-# information for other invokations besides CF, but for edge-case CF calls (e.g. update stack) the resource prop
-# should be authoritative:
+# information for other invokations besides CF, but for edge-case CF calls (e.g. update stack) the resource
+# prop should be authoritative:
 env_iot_policy_name = os.environ["IOT_ACCESS_POLICY_NAME"]
 
 def handler(event, context):
@@ -80,7 +80,7 @@ def handler(event, context):
 
 def setup_stack_handler(event, context):
     identity_pool_id = event["ResourceProperties"]["CognitoIdentityPoolId"]
-    user_pool_id = event["ResourceProperties"]["CognitoUserPoolId"]
+    user_pool_id = event["ResourceProperties"].get("CognitoUserPoolId")
 
     print(f"Setting up identity pool {identity_pool_id}")
     try:
@@ -156,69 +156,72 @@ def setup_stack_handler(event, context):
         )
 
 
-    print(f"Setting up Lambda trigger on user pool {user_pool_id}")
-    try:
-        user_pool_desc = cognito_idp.describe_user_pool(UserPoolId=user_pool_id)
-    except Exception as e:
-        traceback.print_exc()
-        return cfnresponse.send(
-            event,
-            context,
-            "FAILED",
-            {
-                "Error": "Unable to query Cognito user pool ID {}\n{}: {}".format(
-                    user_pool_id,
-                    type(e).__name__,
-                    str(e),
-                ),
-            },
-        )
-
-    current_fn_arn = context.invoked_function_arn
-    #current_fn_arn = context.function_version
-    existing_lambda_trigger = user_pool_desc["UserPool"].get("LambdaConfig", {}).get("PostConfirmation")
-    # TODO: Tolerate previous versions of the same function, or aliases, or etc
-    if existing_lambda_trigger:
-        if existing_lambda_trigger != current_fn_arn:
-            return cfnresponse.send(
-                event,
-                context,
-                "FAILED",
-                {
-                    "Error": "Lambda PostConfirmation trigger already set for {} on user pool {}".format(
-                        existing_lambda_trigger,
-                        user_pool_id,
-                    ),
-                },
-            )
-        # Else Lambda trigger is already set - no user pool configuration required.
+    if not user_pool_id:
+        print(f"Skipping user pool Lambda trigger setup - no user pool ID provided")
     else:
-        # Lambda trigger not yet set up - configure it:
+        print(f"Setting up Lambda trigger on user pool {user_pool_id}")
         try:
-            # The UpdateUserPool update is at LambdaConfig level, not at individual trigger level, so we need
-            # to re-submit any other existing triggers to preserve them:
-            existing_lambda_config = user_pool_desc["UserPool"].get("LambdaConfig", {})
-            new_lambda_config = {
-                k: existing_lambda_config[k] for k in existing_lambda_config if k != "PostConfirmation"
-            }
-            new_lambda_config["PostConfirmation"] = current_fn_arn
-            cognito_idp.update_user_pool(
-                UserPoolId=user_pool_id,
-                LambdaConfig=new_lambda_config,
-            )
+            user_pool_desc = cognito_idp.describe_user_pool(UserPoolId=user_pool_id)
         except Exception as e:
+            traceback.print_exc()
             return cfnresponse.send(
                 event,
                 context,
                 "FAILED",
                 {
-                    "Error": "Unable to set Lambda trigger on Cognito User Pool {}\n{}: {}".format(
+                    "Error": "Unable to query Cognito user pool ID {}\n{}: {}".format(
                         user_pool_id,
                         type(e).__name__,
                         str(e),
                     ),
                 },
             )
+
+        current_fn_arn = context.invoked_function_arn
+        #current_fn_arn = context.function_version
+        existing_lambda_trigger = user_pool_desc["UserPool"].get("LambdaConfig", {}).get("PostConfirmation")
+        # TODO: Tolerate previous versions of the same function, or aliases, or etc
+        if existing_lambda_trigger:
+            if existing_lambda_trigger != current_fn_arn:
+                return cfnresponse.send(
+                    event,
+                    context,
+                    "FAILED",
+                    {
+                        "Error": "Lambda PostConfirmation trigger already set for {} on user pool {}".format(
+                            existing_lambda_trigger,
+                            user_pool_id,
+                        ),
+                    },
+                )
+            # Else Lambda trigger is already set - no user pool configuration required.
+        else:
+            # Lambda trigger not yet set up - configure it:
+            try:
+                # The UpdateUserPool update is at LambdaConfig level, not at individual trigger level, so we
+                # need to re-submit any other existing triggers to preserve them:
+                existing_lambda_config = user_pool_desc["UserPool"].get("LambdaConfig", {})
+                new_lambda_config = {
+                    k: existing_lambda_config[k] for k in existing_lambda_config if k != "PostConfirmation"
+                }
+                new_lambda_config["PostConfirmation"] = current_fn_arn
+                cognito_idp.update_user_pool(
+                    UserPoolId=user_pool_id,
+                    LambdaConfig=new_lambda_config,
+                )
+            except Exception as e:
+                return cfnresponse.send(
+                    event,
+                    context,
+                    "FAILED",
+                    {
+                        "Error": "Unable to set Lambda trigger on Cognito User Pool {}\n{}: {}".format(
+                            user_pool_id,
+                            type(e).__name__,
+                            str(e),
+                        ),
+                    },
+                )
 
     return cfnresponse.send(
         event,
@@ -230,11 +233,11 @@ def setup_stack_handler(event, context):
 
 def update_stack_handler(event, context):
     identity_pool_id = event["ResourceProperties"]["CognitoIdentityPoolId"]
-    user_pool_id = event["ResourceProperties"]["CognitoUserPoolId"]
+    user_pool_id = event["ResourceProperties"].get("CognitoUserPoolId", "")
     iot_policy_name = event["ResourceProperties"].get("IotAccessPolicyName", env_iot_policy_name)
     old_props = event["OldResourceProperties"]
     old_identity_pool_id = old_props["CognitoIdentityPoolId"]
-    old_user_pool_id = old_props["CognitoUserPoolId"]
+    old_user_pool_id = old_props.get("CognitoUserPoolId", "")
     old_iot_policy_name = event["ResourceProperties"].get("IotAccessPolicyName", env_iot_policy_name)
 
     if (
@@ -262,7 +265,7 @@ def update_stack_handler(event, context):
 
 def delete_stack_handler(event, context):
     identity_pool_id = event["ResourceProperties"]["CognitoIdentityPoolId"]
-    user_pool_id = event["ResourceProperties"]["CognitoUserPoolId"]
+    user_pool_id = event["ResourceProperties"].get("CognitoUserPoolId")
 
     print(f"Detaching from identity pool {identity_pool_id}")
     print(f"Detaching AWSIoTConfigAccess and AWSIoTDataAccess from authenticated role")
@@ -329,62 +332,67 @@ def delete_stack_handler(event, context):
         )
 
 
-    print(f"Clearing Lambda trigger on user pool {user_pool_id}")
-    try:
-        # TODO: Succeed if user pool already deleted
-        user_pool_desc = cognito_idp.describe_user_pool(UserPoolId=user_pool_id)
-    except Exception as e:
-        traceback.print_exc()
-        return cfnresponse.send(
-            event,
-            context,
-            "FAILED",
-            {
-                "Error": "Unable to query Cognito user pool ID {}\n{}: {}".format(
-                    user_pool_id,
-                    type(e).__name__,
-                    str(e),
-                ),
-            },
-        )
-
-    current_fn_arn = context.invoked_function_arn
-    #current_fn_arn = context.function_version
-    existing_lambda_trigger = user_pool_desc["UserPool"].get("LambdaConfig", {}).get("PostConfirmation")
-    # TODO: Tolerate previous versions of the same function, or aliases, or etc
-    if existing_lambda_trigger:
-        if existing_lambda_trigger == current_fn_arn:
-            try:
-                # We're not allowed to explicitly set "PostConfirmation": "" or None or etc, so instead we'll
-                # call update with any existing triggers and explicitly *removing* the PostConfirmation key:
-                existing_lambda_config = user_pool_desc["UserPool"].get("LambdaConfig", {})
-                new_lambda_config = {
-                    k: existing_lambda_config[k] for k in existing_lambda_config if k != "PostConfirmation"
-                }
-                cognito_idp.update_user_pool(
-                    UserPoolId=user_pool_id,
-                    LambdaConfig=new_lambda_config,  # None is not permitted
-                )
-            except Exception as e:
-                traceback.print_exc()
-                return cfnresponse.send(
-                    event,
-                    context,
-                    "FAILED",
-                    {
-                        "Error": "Unable to clear user pool Lambda trigger {}\n{}: {}".format(
-                            user_pool_id,
-                            type(e).__name__,
-                            str(e),
-                        ),
-                    },
-                )
-        else:
-            print("User pool Lambda trigger does not match current function - leaving as-is: {}".format(
-                existing_lambda_trigger,
-            ))
+    if not user_pool_id:
+        print(f"Skipping user pool Lambda trigger cleanup - no user pool ID provided")
     else:
-        print("User pool does not have Lambda trigger set up - leaving as-is")
+        print(f"Clearing Lambda trigger on user pool {user_pool_id}")
+        try:
+            # TODO: Succeed if user pool already deleted
+            user_pool_desc = cognito_idp.describe_user_pool(UserPoolId=user_pool_id)
+        except Exception as e:
+            traceback.print_exc()
+            return cfnresponse.send(
+                event,
+                context,
+                "FAILED",
+                {
+                    "Error": "Unable to query Cognito user pool ID {}\n{}: {}".format(
+                        user_pool_id,
+                        type(e).__name__,
+                        str(e),
+                    ),
+                },
+            )
+
+        current_fn_arn = context.invoked_function_arn
+        #current_fn_arn = context.function_version
+        existing_lambda_trigger = user_pool_desc["UserPool"].get("LambdaConfig", {}).get("PostConfirmation")
+        # TODO: Tolerate previous versions of the same function, or aliases, or etc
+        if existing_lambda_trigger:
+            if existing_lambda_trigger == current_fn_arn:
+                try:
+                    # We're not allowed to explicitly set "PostConfirmation": "" or None or etc, so instead
+                    # we'll call update with any existing triggers and explicitly *removing* the
+                    # PostConfirmation key:
+                    existing_lambda_config = user_pool_desc["UserPool"].get("LambdaConfig", {})
+                    new_lambda_config = {
+                        k: existing_lambda_config[k]
+                        for k in existing_lambda_config if k != "PostConfirmation"
+                    }
+                    cognito_idp.update_user_pool(
+                        UserPoolId=user_pool_id,
+                        LambdaConfig=new_lambda_config,  # None is not permitted
+                    )
+                except Exception as e:
+                    traceback.print_exc()
+                    return cfnresponse.send(
+                        event,
+                        context,
+                        "FAILED",
+                        {
+                            "Error": "Unable to clear user pool Lambda trigger {}\n{}: {}".format(
+                                user_pool_id,
+                                type(e).__name__,
+                                str(e),
+                            ),
+                        },
+                    )
+            else:
+                print("User pool Lambda trigger does not match current function - leaving as-is: {}".format(
+                    existing_lambda_trigger,
+                ))
+        else:
+            print("User pool does not have Lambda trigger set up - leaving as-is")
 
     return cfnresponse.send(
         event,
