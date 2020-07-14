@@ -13,7 +13,7 @@
     </div>
     <b-button v-if="file" variant="success" :disabled="pressed" @click="uploadImage()" style="margin-top: 10px;"
       >{{ pressed ? 'Uploading' : 'Upload' }}</b-button>
-    <b-alert :show="!!errorMsg" variant="danger">{{errorMsg}}</b-alert>
+    <b-alert :show="Boolean(errorMsg)" variant="danger">{{errorMsg}}</b-alert>
     <hr/>
 
     <b-container v-if="uploadresult.s3objectkey" class="bv-example-row">
@@ -50,7 +50,7 @@
             </b-row>
           </b-container>
           <hr v-if="resultMsg"/>
-          <b-alert :show="!!resultMsg">{{resultMsg}}</b-alert>
+          <b-alert :show="Boolean(resultMsg)">{{resultMsg}}</b-alert>
 
         </b-col>
       </b-row>
