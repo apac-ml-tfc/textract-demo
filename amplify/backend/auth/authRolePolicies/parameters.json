@@ -1,0 +1,8 @@
+{
+  "authRoleArn": {
+    "Fn::GetAtt": [
+      "AuthRole",
+      "Arn"
+    ]
+  }
+}

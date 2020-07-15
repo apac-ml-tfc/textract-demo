@@ -5,6 +5,11 @@
             "providerPlugin": "awscloudformation",
             "dependsOn": [],
             "customAuth": false
+        },
+        "authRolePolicies": {
+            "service": "CognitoAuthRoleSetup",
+            "providerPlugin": "awscloudformation",
+            "dependsOn": []
         }
     },
     "storage": {

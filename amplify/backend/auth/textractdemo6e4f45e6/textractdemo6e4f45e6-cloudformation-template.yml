@@ -88,10 +88,31 @@ Parameters:
                       
   userPoolGroupList:
     Type: CommaDelimitedList
-                          
+              
   dependsOn:
     Type: CommaDelimitedList
-    
+        
+  thirdPartyAuth:
+    Type: String
+              
+  userPoolGroups:
+    Type: String
+              
+  adminQueries:
+    Type: String
+            
+  triggers:
+    Type: String
+                
+  hostedUI:
+    Type: String
+                  
+  parentStack:
+    Type: String
+                
+  permissions:
+    Type: CommaDelimitedList
+                
 Conditions:
   ShouldNotCreateEnvResources: !Equals [ !Ref env, NONE ]
 
