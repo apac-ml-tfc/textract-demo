@@ -1,6 +1,6 @@
 {
     "auth": {
-        "textractdemo6e4f45e6": {
+        "cognito": {
             "service": "Cognito",
             "providerPlugin": "awscloudformation",
             "dependsOn": [],

@@ -16,10 +16,10 @@ backend:
         - export STACK_NAME=$(jq -r '.providers.awscloudformation.StackName' ./amplify/#current-cloud-backend/amplify-meta.json)
         - export DEPLOYMENT_BUCKET_NAME=$(jq -r '.providers.awscloudformation.DeploymentBucketName' ./amplify/#current-cloud-backend/amplify-meta.json)
         - export AWS_DEFAULT_REGION=$(jq -r '.providers.awscloudformation.Region' amplify/#current-cloud-backend/amplify-meta.json)
-        - export COGNITO_IDENTITY_POOL_ID=$(jq -r '.auth[(.auth | keys)[0]].output.IdentityPoolId' ./amplify/#current-cloud-backend/amplify-meta.json)
-        - export COGNITO_USER_POOL_ID=$(jq -r '.auth[(.auth | keys)[0]].output.UserPoolId' ./amplify/#current-cloud-backend/amplify-meta.json)
+        - export COGNITO_IDENTITY_POOL_ID=$(jq -r '.auth.cognito.output.IdentityPoolId' ./amplify/#current-cloud-backend/amplify-meta.json)
+        - export COGNITO_USER_POOL_ID=$(jq -r '.auth.cognito.output.UserPoolId' ./amplify/#current-cloud-backend/amplify-meta.json)
         - export COGNITO_USER_POOL_ARN=$(aws cognito-idp describe-user-pool --user-pool-id ${COGNITO_USER_POOL_ID} --query 'UserPool.Arn' --output text)
-        - export COGNITO_USER_POOL_CLIENT_ID=$(jq -r '.auth[(.auth | keys)[0]].output.AppClientIDWeb' ./amplify/#current-cloud-backend/amplify-meta.json)
+        - export COGNITO_USER_POOL_CLIENT_ID=$(jq -r '.auth.cognito.output.AppClientIDWeb' ./amplify/#current-cloud-backend/amplify-meta.json)
         - export UPLOAD_BUCKET_NAME=$(jq -r '.storage.uploadBucket.output.BucketName' ./amplify/#current-cloud-backend/amplify-meta.json)
         ##
         # Export key deployed resources to System Manager Parameter Store

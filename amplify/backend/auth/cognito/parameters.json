@@ -1,8 +1,8 @@
 {
-    "identityPoolName": "textractdemo6e4f45e6_identitypool_6e4f45e6",
+    "identityPoolName": "cognito_identitypool_6e4f45e6",
     "allowUnauthenticatedIdentities": false,
     "resourceNameTruncated": "textra6e4f45e6",
-    "userPoolName": "textractdemo6e4f45e6_userpool_6e4f45e6",
+    "userPoolName": "cognito_userpool_6e4f45e6",
     "autoVerifiedAttributes": [
         "email"
     ],
@@ -31,7 +31,7 @@
     "userpoolClientLambdaRole": "textra6e4f45e6_userpoolclient_lambda_role",
     "userpoolClientSetAttributes": false,
     "sharedId": "6e4f45e6",
-    "resourceName": "textractdemo6e4f45e6",
+    "resourceName": "cognito",
     "authSelections": "identityPoolAndUserPool",
     "authRoleArn": {
         "Fn::GetAtt": [
