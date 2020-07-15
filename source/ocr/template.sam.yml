@@ -551,16 +551,17 @@ Resources:
       Environment:
         Variables:
           IOT_ACCESS_POLICY_NAME: !Ref AmplifyIoTAccessPolicy
+          COGNITO_IDENTITY_POOL_ID: !Ref CognitoIdentityPoolId
       # Layers:
       #   - !Ref CommonCodeLayer
 
   # Use FunctionSetUpIotAuth to:
-  # - Attach AWSIoTDataAccess and AWSIoTConfigAccess to the identity pool's authenticated role
   # - Attach all identities in the pool to AmplifyIoTAccessPolicy
-  # - Set up a trigger whenever a new user is signed up
+  # - Set up a trigger to reconcile permissions whenever a user logs in
   AuthorizeUsersForPubSub:
     Type: 'Custom::SetUpIotAuth'
     Condition: AttachToCognito
+    Version: '2.0.0'
     Properties:
       ServiceToken: !GetAtt FunctionSetUpIotAuth.Arn
       CognitoIdentityPoolId: !Ref CognitoIdentityPoolId

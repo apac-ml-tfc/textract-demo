@@ -30,6 +30,10 @@ cognito_idp = boto3.client("cognito-idp")
 # information for other invokations besides CF, but for edge-case CF calls (e.g. update stack) the resource
 # prop should be authoritative:
 env_iot_policy_name = os.environ["IOT_ACCESS_POLICY_NAME"]
+env_identity_pool_id = os.environ["COGNITO_IDENTITY_POOL_ID"]
+
+IOT_TARGET_BATCH_SIZE = 250  # Max permitted per the API doc
+IDENTITY_BATCH_SIZE = 60  # Max permitted per the API doc
 
 def handler(event, context):
     # Determine if it's a CloudFormation resource request (set up or tear-down) or a Cognito request
@@ -72,10 +76,22 @@ def handler(event, context):
                 { "Error": f"Uncaught exception {traceback.format_exc()}" },
             )
     elif "triggerSource" in event and "userName" in event:
+        # (These params are common across Cognito trigger types)
         # It's a Cognito Lambda trigger request
         return new_user_handler(event, context)
     else:
-        raise ValueError(f"Unknown event structure: {event}")
+        # Just interpret it as an instruction to refresh everybody's perms:
+        attach_iot_policy_to_all_identities(env_identity_pool_id, env_iot_policy_name)
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Access-Control-Allow-Credentials": True,
+                "Access-Control-Allow-Origin": "*",
+            },
+            "body": json.dumps({
+                "Message": f"Updated IoT permissions for Cognito Identity pool {env_identity_pool_id}"
+            }),
+        }
 
 
 def setup_stack_handler(event, context):
@@ -84,18 +100,10 @@ def setup_stack_handler(event, context):
 
     print(f"Granting IoT access for existing Cognito identities")
     try:
-        # TODO: Pagination loop
-        identity_list = cognito_identity.list_identities(
-            IdentityPoolId=identity_pool_id,
-            MaxResults=60,  # Max permitted per the API doc
-        ) #, NextToken="")
-        print(identity_list)
-        for identity in identity_list["Identities"]:
-            # TODO: Does this raise an exception if already attached?
-            iot.attach_policy(
-                policyName=event["ResourceProperties"].get("IotAccessPolicyName", env_iot_policy_name),
-                target=identity["IdentityId"],
-            )
+        attach_iot_policy_to_all_identities(
+            identity_pool_id,
+            event["ResourceProperties"].get("IotAccessPolicyName", env_iot_policy_name)
+        )
     except Exception as e:
         traceback.print_exc()
         return cfnresponse.send(
@@ -114,9 +122,13 @@ def setup_stack_handler(event, context):
     if not user_pool_id:
         print(f"Skipping user pool Lambda trigger setup - no user pool ID provided")
     else:
-        print(f"Setting up Lambda trigger on user pool {user_pool_id}")
         try:
-            user_pool_desc = cognito_idp.describe_user_pool(UserPoolId=user_pool_id)
+            current_fn_arn = context.invoked_function_arn
+            #current_fn_version = context.function_version
+            update_lambda_triggers(
+                { "PostAuthentication": current_fn_arn },
+                new_user_pool_id=user_pool_id,
+            )
         except Exception as e:
             traceback.print_exc()
             return cfnresponse.send(
@@ -124,59 +136,13 @@ def setup_stack_handler(event, context):
                 context,
                 "FAILED",
                 {
-                    "Error": "Unable to query Cognito user pool ID {}\n{}: {}".format(
+                    "Error": "Failed to set up Lambda triggers on Cognito user pool ID {}\n{}: {}".format(
                         user_pool_id,
                         type(e).__name__,
                         str(e),
                     ),
                 },
             )
-
-        current_fn_arn = context.invoked_function_arn
-        #current_fn_arn = context.function_version
-        existing_lambda_trigger = user_pool_desc["UserPool"].get("LambdaConfig", {}).get("PostConfirmation")
-        # TODO: Tolerate previous versions of the same function, or aliases, or etc
-        if existing_lambda_trigger:
-            if existing_lambda_trigger != current_fn_arn:
-                return cfnresponse.send(
-                    event,
-                    context,
-                    "FAILED",
-                    {
-                        "Error": "Lambda PostConfirmation trigger already set for {} on user pool {}".format(
-                            existing_lambda_trigger,
-                            user_pool_id,
-                        ),
-                    },
-                )
-            # Else Lambda trigger is already set - no user pool configuration required.
-        else:
-            # Lambda trigger not yet set up - configure it:
-            try:
-                # The UpdateUserPool update is at LambdaConfig level, not at individual trigger level, so we
-                # need to re-submit any other existing triggers to preserve them:
-                existing_lambda_config = user_pool_desc["UserPool"].get("LambdaConfig", {})
-                new_lambda_config = {
-                    k: existing_lambda_config[k] for k in existing_lambda_config if k != "PostConfirmation"
-                }
-                new_lambda_config["PostConfirmation"] = current_fn_arn
-                cognito_idp.update_user_pool(
-                    UserPoolId=user_pool_id,
-                    LambdaConfig=new_lambda_config,
-                )
-            except Exception as e:
-                return cfnresponse.send(
-                    event,
-                    context,
-                    "FAILED",
-                    {
-                        "Error": "Unable to set Lambda trigger on Cognito User Pool {}\n{}: {}".format(
-                            user_pool_id,
-                            type(e).__name__,
-                            str(e),
-                        ),
-                    },
-                )
 
     return cfnresponse.send(
         event,
@@ -195,6 +161,28 @@ def update_stack_handler(event, context):
     old_user_pool_id = old_props.get("CognitoUserPoolId", "")
     old_iot_policy_name = event["ResourceProperties"].get("IotAccessPolicyName", env_iot_policy_name)
 
+    # Refresh IoT policy attachments on the new pool even if there's been 'no change'
+    if (identity_pool_id):
+        try:
+            attach_iot_policy_to_all_identities(identity_pool_id, iot_policy_name)
+        except Exception as e:
+            traceback.print_exc()
+            # This is a failing error iff the update includes a change to the relevant components:
+            if (identity_pool_id != old_identity_pool_id or iot_policy_name != old_iot_policy_name):
+                return cfnresponse.send(
+                    event,
+                    context,
+                    "FAILED",
+                    {
+                        "Error": "Couldn't attach IoT access policy to existing identities.  {}: {}".format(
+                            type(e).__name__,
+                            str(e),
+                        ),
+                    },
+                )
+            else:
+                print("Ignoring IoT policy refresh failure as cfn Update didn't edit pool ID or policy")
+
     if (
         identity_pool_id == old_identity_pool_id
         and user_pool_id == old_user_pool_id
@@ -207,15 +195,58 @@ def update_stack_handler(event, context):
             "SUCCESS",
             { "Message": "Nothing to update" },
         )
-    else:
-        # TODO: Implement update and make success less permissive
-        print("NOT IMPLEMENTED: CloudFormation stack update with param changes")
-        return cfnresponse.send(
-            event,
-            context,
-            "SUCCESS",
-            { "Error": "CloudFormation Update method not yet implemented" },
-        )
+
+    if (
+        old_identity_pool_id
+        and (old_identity_pool_id != identity_pool_id or old_iot_policy_name != iot_policy_name)
+    ):
+        try:
+            detach_iot_policy_from_all_identities(old_identity_pool_id: str, old_iot_policy_name: str)
+        except Exception as e:
+            traceback.print_exc()
+            return cfnresponse.send(
+                event,
+                context,
+                "FAILED",
+                {
+                    "Error": "Couldn't revoke IoT access policy from old identity pool.  {}: {}".format(
+                        type(e).__name__,
+                        str(e),
+                    ),
+                },
+            )
+
+    if (user_pool_id != old_user_pool_id):
+        try:
+            trigger_dict = { "PostAuthentication": context.invoked_function_arn }
+            update_lambda_triggers(
+                trigger_dict,
+                new_user_pool_id=user_pool_id,
+                old_user_pool_id=old_user_pool_id,
+                # TODO: Handle changes in Lambda ARN by taking it as a parameter?
+                #old_trigger_dict=None,
+            )
+        except Exception as e:
+            traceback.print_exc()
+            return cfnresponse.send(
+                event,
+                context,
+                "FAILED",
+                {
+                    "Error": "Couldn't update user pool Lambda trigger configuration.  {}: {}".format(
+                        type(e).__name__,
+                        str(e),
+                    ),
+                },
+            )
+
+
+    return cfnresponse.send(
+        event,
+        context,
+        "SUCCESS",
+        { "Message": "Update complete" },
+    )
 
 
 def delete_stack_handler(event, context):
@@ -225,18 +256,10 @@ def delete_stack_handler(event, context):
 
     print(f"Revoking IoT access for existing Cognito identities")
     try:
-        # TODO: Pagination loop
-        identity_list = cognito_identity.list_identities(
-            IdentityPoolId=identity_pool_id,
-            MaxResults=60,  # Max permitted per the API doc
-        ) #, NextToken="")
-        print(identity_list)
-        for identity in identity_list["Identities"]:
-            # TODO: Does this raise an exception if already detached?
-            iot.detach_policy(
-                policyName=event["ResourceProperties"].get("IotAccessPolicyName", env_iot_policy_name),
-                target=identity["IdentityId"],
-            )
+        detach_iot_policy_from_all_identities(
+            identity_pool_id,
+            event["ResourceProperties"].get("IotAccessPolicyName", env_iot_policy_name)
+        )
     except Exception as e:
         traceback.print_exc()
         return cfnresponse.send(
@@ -255,10 +278,13 @@ def delete_stack_handler(event, context):
     if not user_pool_id:
         print(f"Skipping user pool Lambda trigger cleanup - no user pool ID provided")
     else:
-        print(f"Clearing Lambda trigger on user pool {user_pool_id}")
         try:
-            # TODO: Succeed if user pool already deleted
-            user_pool_desc = cognito_idp.describe_user_pool(UserPoolId=user_pool_id)
+            current_fn_arn = context.invoked_function_arn
+            #current_fn_arn = context.function_version
+            update_lambda_triggers(
+                { "PostAuthentication": current_fn_arn },
+                old_user_pool_id=user_pool_id,
+            )
         except Exception as e:
             traceback.print_exc()
             return cfnresponse.send(
@@ -266,53 +292,13 @@ def delete_stack_handler(event, context):
                 context,
                 "FAILED",
                 {
-                    "Error": "Unable to query Cognito user pool ID {}\n{}: {}".format(
+                    "Error": "Unable to clear Lambda triggers from Cognito user pool ID {}\n{}: {}".format(
                         user_pool_id,
                         type(e).__name__,
                         str(e),
                     ),
                 },
             )
-
-        current_fn_arn = context.invoked_function_arn
-        #current_fn_arn = context.function_version
-        existing_lambda_trigger = user_pool_desc["UserPool"].get("LambdaConfig", {}).get("PostConfirmation")
-        # TODO: Tolerate previous versions of the same function, or aliases, or etc
-        if existing_lambda_trigger:
-            if existing_lambda_trigger == current_fn_arn:
-                try:
-                    # We're not allowed to explicitly set "PostConfirmation": "" or None or etc, so instead
-                    # we'll call update with any existing triggers and explicitly *removing* the
-                    # PostConfirmation key:
-                    existing_lambda_config = user_pool_desc["UserPool"].get("LambdaConfig", {})
-                    new_lambda_config = {
-                        k: existing_lambda_config[k]
-                        for k in existing_lambda_config if k != "PostConfirmation"
-                    }
-                    cognito_idp.update_user_pool(
-                        UserPoolId=user_pool_id,
-                        LambdaConfig=new_lambda_config,  # None is not permitted
-                    )
-                except Exception as e:
-                    traceback.print_exc()
-                    return cfnresponse.send(
-                        event,
-                        context,
-                        "FAILED",
-                        {
-                            "Error": "Unable to clear user pool Lambda trigger {}\n{}: {}".format(
-                                user_pool_id,
-                                type(e).__name__,
-                                str(e),
-                            ),
-                        },
-                    )
-            else:
-                print("User pool Lambda trigger does not match current function - leaving as-is: {}".format(
-                    existing_lambda_trigger,
-                ))
-        else:
-            print("User pool does not have Lambda trigger set up - leaving as-is")
 
     return cfnresponse.send(
         event,
@@ -322,8 +308,150 @@ def delete_stack_handler(event, context):
     )
 
 
-def new_user_handler(event, context):
-    # TODO: Set up the user's account
-    # Cognito triggers are supposed to modify and pass-through the same event object:
-    print(event)
+def post_login_handler(event, context):
+    """On every user login, check the whole identity pool's setup
+
+    Cognito User Pool triggers listen to the user pool, not the identity pool, so they don't see the
+    IdentityId associated with the current UserId.
+
+    Since our demo app will have a small pool of identities, it's more practical/easy to do this than set up
+    a custom API for logged-in users to request their permissions be set up.
+
+    TODO: Cognito triggers must respond in 5sec - add timeout or async process kick-off?
+    """
+    try:
+        attach_iot_policy_to_all_identities(env_identity_pool_id, env_iot_policy_name)
+    except Exception as e:
+        traceback.print_exc()
+        print("WARNING: failed to refresh pool IoT perms on user login - ignoring")
     return event
+
+
+def attach_iot_policy_to_all_identities(identity_pool_id: str, iot_policy_name: str):
+    """Lists all targets attached to the policy, and all identities in the pool, then reconciles"""
+
+    print(f"Querying which identities are already attached to IoT policy {iot_policy_name}")
+    already_attached_identities = set()
+    iot_target_list = iot.list_targets_for_policy(
+        policyName=os.environ['IOT_POLICY'],
+        pageSize=IOT_TARGET_BATCH_SIZE,
+    )
+    while len(iot_target_list["targets"]):
+        already_attached_identities.update(iot_target_list["targets"])
+        next_token = iot_target_list["nextMarker"]
+        if next_token:
+            if len(iot_target_list["targets"]) < IOT_TARGET_BATCH_SIZE:
+                print("WARNING: Got a continuation token but fewer than requested IoT targets???")
+            iot_target_list = iot.list_targets_for_policy(
+                policyName=os.environ['IOT_POLICY'],
+                pageSize=IOT_TARGET_BATCH_SIZE,
+                marker=next_token,
+            )
+        else:
+            break
+
+    print(f"Ensuring all identities in {identity_pool_id} attached to IoT policy {iot_policy_name}")
+    identity_list = cognito_identity.list_identities(
+        IdentityPoolId=identity_pool_id,
+        MaxResults=IDENTITY_BATCH_SIZE,
+    )
+    while len(identity_list["Identities"]):
+        for identity in identity_list["Identities"]:
+            if identity["IdentityId"] not in already_attached_identities:
+                iot.attach_policy(policyName=iot_policy_name, target=identity["IdentityId"])
+        next_token = identity_list.get("NextToken")
+        if next_token:
+            if len(identity_list["Identities"]) < IDENTITY_BATCH_SIZE:
+                print("WARNING: Got a continuation token but fewer than requested identities???")
+            identity_list = cognito_identity.list_identities(
+                IdentityPoolId=identity_pool_id,
+                MaxResults=IDENTITY_BATCH_SIZE,
+                NextToken=next_token,
+            )
+        else:
+            break
+
+
+def detach_iot_policy_from_all_identities(identity_pool_id: str, iot_policy_name: str):
+    print(f"Revoking IoT access for existing Cognito identities")
+    identity_list = cognito_identity.list_identities(
+        IdentityPoolId=identity_pool_id,
+        MaxResults=IDENTITY_BATCH_SIZE,
+    )
+    while len(identity_list["Identities"]):
+        for identity in identity_list["Identities"]:
+            # This doesn't seem to raise an exception if already detached:
+            iot.detach_policy(policyName=iot_policy_name, target=identity["IdentityId"])
+        next_token = identity_list.get("NextToken")
+        if next_token:
+            if len(identity_list["Identities"]) < IDENTITY_BATCH_SIZE:
+                print("WARNING: Got a continuation token but fewer than requested identities???")
+            identity_list = cognito_identity.list_identities(
+                IdentityPoolId=identity_pool_id,
+                MaxResults=IDENTITY_BATCH_SIZE,
+                NextToken=next_token,
+            )
+        else:
+            break
+
+
+def update_lambda_triggers(
+    trigger_dict,
+    new_user_pool_id=None,
+    old_user_pool_id=None,
+    old_trigger_dict=None,
+):
+    """Install triggers from new_user_pool_id and/or clean from old_user_pool_id
+
+    trigger_dict is a dict from event to Lambda function ARN, as per:
+    https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/API_UpdateUserPool.html
+
+    If old_trigger_dict is not specified, the same spec will be used between setup and cleaning
+
+    TODO: Tolerate previous versions of the same function, or aliases, or etc
+    """
+    if old_trigger_dict is None:
+        old_trigger_dict = trigger_dict
+    # First install on the new pool, if present:
+    if new_user_pool_id:
+        print(f"Setting Lambda triggers on new Cognito user pool {new_user_pool_id}")
+        new_pool_desc = cognito_idp.describe_user_pool(UserPoolId=new_user_pool_id)
+        existing_triggers = new_pool_desc["UserPool"].get("LambdaConfig", {})
+        updated_triggers = existing_triggers.copy()  # This will be our update request
+        any_changes = False  # Tracking whether an update is needed at all
+        for key in trigger_dict:
+            prev_trigger = existing_triggers.get(key)
+
+            if trigger_dict[key]:
+                updated_triggers[key] = trigger_dict[key]
+            elif key in updated_triggers:
+                del updated_triggers[key]  # a ""/None entry in trigger_dict should explicitly delete.
+
+            if trigger_dict[key] != prev_trigger:
+                any_changes = True
+                if prev_trigger:
+                    raise ValueError(
+                        f"Trigger '{key}' already configured to different function {prev_trigger}"
+                    )
+        if any_changes:
+            cognito_idp.update_user_pool(
+                UserPoolId=new_user_pool_id,
+                LambdaConfig=updated_triggers,
+            )
+
+    # Then remove from old pool, if present:
+    if old_user_pool_id:
+        print(f"Clearing Lambda triggers from old Cognito user pool {old_user_pool_id}")
+        new_pool_desc = cognito_idp.describe_user_pool(UserPoolId=old_user_pool_id)
+        existing_triggers = new_pool_desc["UserPool"].get("LambdaConfig", {})
+        updated_triggers = existing_triggers.copy()  # This will be our update request
+        any_changes = False  # Tracking whether an update is needed at all
+        for key in old_trigger_dict:
+            if old_trigger_dict[key] and old_trigger_dict[key] == existing_triggers.get(key):
+                any_changes = True
+                del updated_triggers[key]
+        if any_changes:
+            cognito_idp.update_user_pool(
+                UserPoolId=old_user_pool_id,
+                LambdaConfig=updated_triggers,
+            )
