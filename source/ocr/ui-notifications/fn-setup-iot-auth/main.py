@@ -1,10 +1,10 @@
 """Lambda to manage IoT PubSub permissions for OCR progress push notifications
 
 Invokable as both a CloudFormation custom resource (to configure initial access) and a Cognito
-PostConfirmation trigger (to add newly registering users).
+PostAuthentication trigger - to reconcile all identity pool permissions on *every* user login, because of:
+https://forums.aws.amazon.com/thread.jspa?messageID=924345
 
-TODO: PostConfirmation trigger not yet able to add new user access 
-^ Because of: https://forums.aws.amazon.com/thread.jspa?messageID=924345
+TODO: PostAuthentication trigger not yet tested able to add new user access
 
 TODO: Implement 'Update' action for CloudFormation (currently just Create and Delete supported)
 
