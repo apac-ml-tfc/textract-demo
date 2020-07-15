@@ -201,7 +201,7 @@ def update_stack_handler(event, context):
         and (old_identity_pool_id != identity_pool_id or old_iot_policy_name != iot_policy_name)
     ):
         try:
-            detach_iot_policy_from_all_identities(old_identity_pool_id: str, old_iot_policy_name: str)
+            detach_iot_policy_from_all_identities(old_identity_pool_id, old_iot_policy_name)
         except Exception as e:
             traceback.print_exc()
             return cfnresponse.send(
