@@ -1,66 +1,33 @@
-# Smart OCR : OCR Post-Processing
-## HOW TO: Using AWS Lambda, Amazon Textract, Amazon Comprehend to extract business attributes from bill/voice
+# OCR Post-Processing with AWS Lambda and Amazon Comprehend
 
-# OCR and A2I flow
-<br>![alt text ](https://github.com/apac-ml-tfc/textract-demo/blob/master/2.ocr-post-processing/ocr-processing-and-a2i.png "Module flow")  
+Post-processing is the important link that connects our raw Textract outputs (text, tables, and verbatim key-value pairs) to our business-level targets (receipt vendor, date, and total amount).
 
-### Pre-requisites for AWS Lambda python code
-- Lambda python runtime is version 3.8
-- Lambda function handler is `lambda_function.lambda_handler`
+## Solution Architecture
 
-- You can define Lambda environment variables as following:
-    1. <strong>flowDefinitionArn</strong> is refering to Human loop loop in A2i
-    2. <strong>avg_confthreshold</strong> is average ocr post processing threshold that you can define.
-    3. <strong>preprocessingFunction</strong> is Preprocessing function to identifiying whether image quality is good, or bad.
-    4. You may need follow IAM policy in order for OCR post processing function Execution role to work:
-        - AWSLambdaFullAccess, AmazonS3FullAccess, CloudWatchFullAccess, AmazonDynamoDBFullAccess, AmazonTextractFullAccess, ComprehendFullAccess, AWSIoTFullAccess, AmazonAugmentedAllHumanLoopFullAccess
-    <h4> *** In Production, We are highly recommended to apply least privilege principal for IAM role</h4>
----
-## Step to follow to deploy OCR Post-Processing
- 
- ## 1.) Create DynamoDB 
- In this step, we will navigate to DynamoDB Console and create the DynamoDB used throughout this application
+Post-processing can be as simple (e.g. basic extraction of Textract key-value pairs) or as complex (e.g. deep learning models to transform the result as a whole) as you need.
 
-Login to AWS Console: https://console.aws.amazon.com/dynamodb/home?region=us-east-1#
+In this example, we use a **mainly rule-based algorithm** (with a little help from [Amazon Comprehend](https://aws.amazon.com/comprehend/)) - implemented in an AWS Lambda function:
 
-* Click - **Create Table**
-    * Table Name : **imnage-tracking**
-    * Click checkbox **Add sort key** (bottom Partition Key Textbox)
-        * Partition Key: **id**
-        * Sort key: **bucketkey**
-    * Leave all option as Default
-* Click **Create**
+**For Vendor:**
 
+- The vendor name is typically the heading of the receipt, and doesn't have explicit labelling e.g. *"Vendor: Amazon"*.
+- Therefore we hard-code an assumption that the **first line** of the receipt text is the vendor name.
+- An alternative could be to use NLP entity detection techniques (e.g. with [Amazon SageMaker](https://aws.amazon.com/sagemaker/)) to pick out text which appears to be a company name.
 
+**For Total:**
 
-## 2.) Create Lambda Function
- In this step, we will navigate to AWS Lambda Console and create the Labmda function used throughout this application
+- The total value is typically explicitly labelled e.g. "TOTAL: 4.86", although the exact text of the label may vary (e.g. 'Total Payable', etc).
+- Therefore we **search for appropriately-named key-value pairs** in the Textract output, and check that the associated value is numeric.
+- Note that some additional processing to allow for currency symbols in 'numerics' would be a good idea here!
 
- Login to AWS Console: https://console.aws.amazon.com/lambda/home?region=us-east-1#/functions
+**For Date:**
 
+- The transaction date is sometimes labelled explicitly, but often not.
+- Therefore we **search for appropriately-named key-value pairs** in the Textract output, and if none are found we call [Amazon Comprehend Detect Entities](https://docs.aws.amazon.com/comprehend/latest/dg/how-entities.html) to find any `DATE` type entities in the receipt text.
 
-* 2.1) Create Lambda function by Click - **Create function**
-    * Choose : **Author from scratch**
-    * Function Name: **Your function name** (Ex. MyOCRProcessing)
-    * Runtime: **Python 3.8** 
-* Click: **Create function**
+|`NOTE` | Even though we're processing the output with rules, we should still output some *confidence scores* |
+|-|-|
 
+This sample reports both per-field and overall confidence scores, derived from the input Textract and Comprehend confidence scores and some heuristics for the rules we applied.
 
-* 2.2) Create Lambda Code, In Lambda Function Code IDE 
-    * 2.2.1) Create Textract parser
-        * Click file : **New file named: trp.py**
-        * Copy Code from **src/trp.py** to the **new file** that you have created, file name must be the same
-        * Save Lambda function by **CTRL+S**
-    * 2.2.2) Create Main OCR Function
-        * Copy Code from **src/ocrpostprocess.py** to the **lambda_function.py** that you have created.  
-        * Save Lambda function by **CTRL+S**  
-
-## 3.) Setting Lambda Permession
-In your Lambda function, You click **Permission**, and Click a **Your Lambda Execute Role name**, It will direct to your IAM role
-
-* Click : **Attach Policies**
-* You may need follow IAM policy in order for OCR post processing function Execution role to work: **AWSLambdaFullAccess, AmazonS3FullAccess, CloudWatchFullAccess, AmazonDynamoDBFullAccess, AmazonTextractFullAccess, ComprehendFullAccess, AWSIoTFullAccess, AmazonAugmentedAllHumanLoopFullAccess**
-* Click : **Attach Policy**
-#
-Congraturation, You have finished OCR Post processing setup !!! 
-
+The more closely we can make our overall confidence score correlate to the **probability the result is correct**, the more useful it will be and the better results we can get from a combination of automatic processing and human review!

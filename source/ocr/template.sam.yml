@@ -119,6 +119,7 @@ Resources:
 
 ##########  COMMON TO BE FACTORED OUT  ##########
   # TODO: Scope the various Lambda permissions down
+  # In production, we highly recommend you apply the least-privilege principle!
   LambdaAdminRole:
     Type: 'AWS::IAM::Role'
     Properties:
