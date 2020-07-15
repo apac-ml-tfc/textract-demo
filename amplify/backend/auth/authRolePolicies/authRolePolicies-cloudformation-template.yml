@@ -24,4 +24,5 @@ Resources:
               - 'iot:UpdateThingShadow'
               - 'iot:DeleteThingShadow'
             Resource: '*'
-      Roles: !Ref authRoleArn
+      Roles:
+        - !Ref authRoleArn
