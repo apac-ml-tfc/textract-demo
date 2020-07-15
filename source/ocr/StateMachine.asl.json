@@ -52,12 +52,12 @@
       "Next": "Check Confidence"
     },
     "Check Confidence": {
-      "Comment": "Route low-confidence results for human review",
+      "Comment": "Route low-confidence results for human review (we're super permissive for now)",
       "Type": "Choice",
       "Choices": [
         {
           "Variable": "$.ModelResult.Confidence",
-          "NumericGreaterThanEquals": 80,
+          "NumericGreaterThanEquals": 50,
           "Next": "Succeeded"
         }
       ],
