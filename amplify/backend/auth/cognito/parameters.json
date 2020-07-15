@@ -1,7 +1,7 @@
 {
     "identityPoolName": "cognito_identitypool_6e4f45e6",
     "allowUnauthenticatedIdentities": false,
-    "resourceNameTruncated": "textra6e4f45e6",
+    "resourceNameTruncated": "cognit6e4f45e6",
     "userPoolName": "cognito_userpool_6e4f45e6",
     "autoVerifiedAttributes": [
         "email"
@@ -28,7 +28,7 @@
     "userpoolClientReadAttributes": [
         "email"
     ],
-    "userpoolClientLambdaRole": "textra6e4f45e6_userpoolclient_lambda_role",
+    "userpoolClientLambdaRole": "cognit6e4f45e6_userpoolclient_lambda_role",
     "userpoolClientSetAttributes": false,
     "sharedId": "6e4f45e6",
     "resourceName": "cognito",
