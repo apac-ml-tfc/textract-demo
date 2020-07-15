@@ -3,7 +3,7 @@ AWSTemplateFormatVersion: 2010-09-09
 Parameters:
   env:
     Type: String
-  authRoleArn:
+  authRoleName:
     Type: String
 
 Resources:
@@ -25,4 +25,4 @@ Resources:
               - 'iot:DeleteThingShadow'
             Resource: '*'
       Roles:
-        - !Ref authRoleArn
+        - !Ref authRoleName
