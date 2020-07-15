@@ -144,6 +144,7 @@ export default {
         this.uploadprogress_loaded = 0;
         this.uploadprogress_total = 100;
         this.ocrresult = {}
+        this.s3objecturl = null;
         const me = this;
         logger.info('uploading image', this.file.name, this.file.type)
         await Storage.put(IMAGEUPLOADPATH + this.file.name, this.file, {
