@@ -82,51 +82,6 @@ def setup_stack_handler(event, context):
     identity_pool_id = event["ResourceProperties"]["CognitoIdentityPoolId"]
     user_pool_id = event["ResourceProperties"].get("CognitoUserPoolId")
 
-    print(f"Setting up identity pool {identity_pool_id}")
-    try:
-        identity_pool_roles = cognito_identity.get_identity_pool_roles(IdentityPoolId=identity_pool_id)
-        authenticated_role_arn = identity_pool_roles["Roles"]["authenticated"]
-        authenticated_role_name = authenticated_role_arn.rpartition("/")[2]
-    except Exception as e:
-        try:
-            print(identity_pool_roles)
-        except NameError:
-            pass
-        traceback.print_exc()
-        return cfnresponse.send(
-            event,
-            context,
-            "FAILED",
-            { "Error": f"Couldn't find authenticated role for Cognito identity pool ID {identity_pool_id}" },
-        )
-
-    # TODO: Delete and Update actions for identity pool
-    print(f"Attaching AWSIoTConfigAccess and AWSIoTDataAccess to {authenticated_role_name}")
-    try:
-        # TODO: Does this raise an exception if already attached?
-        iam.attach_role_policy(
-            RoleName=authenticated_role_name,
-            PolicyArn="arn:aws:iam::aws:policy/AWSIoTConfigAccess",
-        )
-        iam.attach_role_policy(
-            RoleName=authenticated_role_name,
-            PolicyArn="arn:aws:iam::aws:policy/AWSIoTDataAccess",
-        )
-    except Exception as e:
-        traceback.print_exc()
-        return cfnresponse.send(
-            event,
-            context,
-            "FAILED",
-            {
-                "Error": "Couldn't attach AWSIoTConfigAccess and AWSIoTDataAccess to role {}  {}: {}".format(
-                    authenticated_role_name,
-                    type(e).__name__,
-                    str(e),
-                ),
-            },
-        )
-
     print(f"Granting IoT access for existing Cognito identities")
     try:
         # TODO: Pagination loop
@@ -266,41 +221,6 @@ def update_stack_handler(event, context):
 def delete_stack_handler(event, context):
     identity_pool_id = event["ResourceProperties"]["CognitoIdentityPoolId"]
     user_pool_id = event["ResourceProperties"].get("CognitoUserPoolId")
-
-    print(f"Detaching from identity pool {identity_pool_id}")
-    print(f"Detaching AWSIoTConfigAccess and AWSIoTDataAccess from authenticated role")
-    try:
-        identity_pool_roles = cognito_identity.get_identity_pool_roles(IdentityPoolId=identity_pool_id)
-        authenticated_role_arn = identity_pool_roles["Roles"]["authenticated"]
-        authenticated_role_name = authenticated_role_arn.rpartition("/")[2]
-        try:
-            iam.detach_role_policy(
-                RoleName=authenticated_role_name,
-                PolicyArn="arn:aws:iam::aws:policy/AWSIoTConfigAccess",
-            )
-        except iam.exceptions.NoSuchEntityException:
-            pass
-        try:
-            iam.detach_role_policy(
-                RoleName=authenticated_role_name,
-                PolicyArn="arn:aws:iam::aws:policy/AWSIoTDataAccess",
-            )
-        except iam.exceptions.NoSuchEntityException:
-            pass
-    except cognito_identity.exceptions.ResourceNotFoundException:
-        print(f"Identity pool not found - skipping: {identity_pool_id}")
-    except Exception as e:
-        try:
-            print(identity_pool_roles)
-        except NameError:
-            pass
-        traceback.print_exc()
-        return cfnresponse.send(
-            event,
-            context,
-            "FAILED",
-            { "Error": f"Couldn't find authenticated role for Cognito identity pool ID {identity_pool_id}" },
-        )
 
 
     print(f"Revoking IoT access for existing Cognito identities")
