@@ -258,7 +258,7 @@ def update_stack_handler(event, context):
         return cfnresponse.send(
             event,
             context,
-            "FAILED",
+            "SUCCESS",
             { "Error": "CloudFormation Update method not yet implemented" },
         )
 
