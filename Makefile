@@ -8,6 +8,7 @@ DEPLOYMENT_BUCKET_NAME ?= "UNDEFINED"
 UPLOAD_BUCKET_NAME ?= "UNDEFINED"
 COGNITO_IDENTITY_POOL_ID ?= "UNDEFINED"
 COGNITO_USER_POOL_ID ?= "UNDEFINED"
+SAM_BUILD_EXTRA_ARGS ?= ""
 
 target:
 	$(info ${HELP_MESSAGE})
@@ -31,7 +32,8 @@ deploy.processing: ##=> Deploy OCR processing service using SAM
 	$(info [*] Packaging and deploying OCR processing service...)
 	cd source/ocr && \
 		sam build \
-			--template template.sam.yml && \
+			--template template.sam.yml \
+			$(SAM_BUILD_EXTRA_ARGS) && \
 		sam package \
 			--s3-bucket $${DEPLOYMENT_BUCKET_NAME} \
     	--s3-prefix sam \
