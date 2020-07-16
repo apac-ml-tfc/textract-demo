@@ -82,6 +82,9 @@ def handler(event, context):
         # It's a Cognito Lambda trigger request
         return post_login_handler(event, context)
     else:
+        if event and "Delay" in event:
+            print(f"Delaying invokation by {event['Delay']}s")
+            time.sleep(event["Delay"])
         # Just interpret it as an instruction to refresh everybody's perms:
         attach_iot_policy_to_all_identities(env_identity_pool_id, env_iot_policy_name)
         return {
@@ -321,7 +324,13 @@ def post_login_handler(event, context):
 
     Asynchronously invokes this same Lambda without a payload, to do the updates in the background
     """
-    lambdaclient.invoke(FunctionName=context.invoked_function_arn, InvocationType="Event")
+    # Because PostLogin is called and must return in the authentication flow before a new user's Cognito
+    # Identity ID is created - so we'll trigger the reconciliation with a small delay to ensure ID exists:
+    lambdaclient.invoke(
+        FunctionName=context.invoked_function_arn,
+        InvocationType="Event",
+        Payload=json.dumps({ "Delay": 1.2 }),
+    )
     return event
 
 
