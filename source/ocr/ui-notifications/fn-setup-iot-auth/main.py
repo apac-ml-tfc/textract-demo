@@ -11,6 +11,7 @@ TODO: Implement 'Update' action for CloudFormation (currently just Create and De
 """
 
 # Python Built-Ins:
+import json
 import os
 import time
 import traceback
@@ -21,10 +22,11 @@ import boto3
 # Local Dependencies:
 import cfnresponse  # AWS CloudFormation response util
 
-iam = boto3.client("iam")
-iot = boto3.client("iot")
 cognito_identity = boto3.client("cognito-identity")
 cognito_idp = boto3.client("cognito-idp")
+iam = boto3.client("iam")
+iot = boto3.client("iot")
+lambdaclient = boto3.client("lambda")
 
 # We pass this in as *both* a CF resource param and a Lambda env var because the Lambda function may need the
 # information for other invokations besides CF, but for edge-case CF calls (e.g. update stack) the resource
@@ -78,7 +80,7 @@ def handler(event, context):
     elif "triggerSource" in event and "userName" in event:
         # (These params are common across Cognito trigger types)
         # It's a Cognito Lambda trigger request
-        return new_user_handler(event, context)
+        return post_login_handler(event, context)
     else:
         # Just interpret it as an instruction to refresh everybody's perms:
         attach_iot_policy_to_all_identities(env_identity_pool_id, env_iot_policy_name)
@@ -317,13 +319,9 @@ def post_login_handler(event, context):
     Since our demo app will have a small pool of identities, it's more practical/easy to do this than set up
     a custom API for logged-in users to request their permissions be set up.
 
-    TODO: Cognito triggers must respond in 5sec - add timeout or async process kick-off?
+    Asynchronously invokes this same Lambda without a payload, to do the updates in the background
     """
-    try:
-        attach_iot_policy_to_all_identities(env_identity_pool_id, env_iot_policy_name)
-    except Exception as e:
-        traceback.print_exc()
-        print("WARNING: failed to refresh pool IoT perms on user login - ignoring")
+    lambdaclient.invoke(FunctionName=context.invoked_function_arn, InvocationType="Event")
     return event
 
 
@@ -333,17 +331,17 @@ def attach_iot_policy_to_all_identities(identity_pool_id: str, iot_policy_name: 
     print(f"Querying which identities are already attached to IoT policy {iot_policy_name}")
     already_attached_identities = set()
     iot_target_list = iot.list_targets_for_policy(
-        policyName=os.environ['IOT_POLICY'],
+        policyName=iot_policy_name,
         pageSize=IOT_TARGET_BATCH_SIZE,
     )
     while len(iot_target_list["targets"]):
         already_attached_identities.update(iot_target_list["targets"])
-        next_token = iot_target_list["nextMarker"]
+        next_token = iot_target_list.get("nextMarker")
         if next_token:
             if len(iot_target_list["targets"]) < IOT_TARGET_BATCH_SIZE:
                 print("WARNING: Got a continuation token but fewer than requested IoT targets???")
             iot_target_list = iot.list_targets_for_policy(
-                policyName=os.environ['IOT_POLICY'],
+                policyName=iot_policy_name,
                 pageSize=IOT_TARGET_BATCH_SIZE,
                 marker=next_token,
             )

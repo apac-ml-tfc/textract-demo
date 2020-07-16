@@ -242,6 +242,46 @@ Resources:
       # be a pain for workshops/etc (since bucket names need to be globally unique).
       #SourceArn: !Sub 'arn:aws:s3:::${HumanReviewsBucket}'
 
+  # Create an Amazon SageMaker role in case the deployer wants to follow through any of the SageMaker notebooks:
+  SageMakerNotebookRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      #RoleName: !Sub '${ProjectId}-ModelAdminRole'
+      #Path: !Sub '/${ProjectId}/'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - sagemaker.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: StackS3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:ListBucket'
+                Resource:
+                  - !If [CreateUploadBucket, !GetAtt RawInputBucket.Arn, !Sub 'arn:aws:s3:::${UploadBucketName}']
+                  - !GetAtt ProcessedInputBucket.Arn
+                  - !GetAtt RawOutputBucket.Arn
+                  - !GetAtt HumanReviewsBucket.Arn
+              - Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                  - 's3:GetObject'
+                  - 's3:DeleteObject'
+                Resource:
+                  - !If [CreateUploadBucket, !Sub '${RawInputBucket.Arn}/*', !Sub 'arn:aws:s3:::${UploadBucketName}/*']
+                  - !Sub '${ProcessedInputBucket.Arn}/*'
+                  - !Sub '${RawOutputBucket.Arn}/*'
+                  - !Sub '${HumanReviewsBucket.Arn}/*'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonSageMakerFullAccess'
 
 ##########  PROCESS ORCHESTRATION  ##########
   StepFunctionsXRayAccessPolicy:
@@ -571,6 +611,15 @@ Resources:
       # should be authoritative:
       IotAccessPolicyName: !Ref AmplifyIoTAccessPolicy
 
+  CognitoTriggerLambdaPermission:
+    Type: 'AWS::Lambda::Permission'
+    Condition: AttachToCognito
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !GetAtt FunctionSetUpIotAuth.Arn
+      Principal: cognito-idp.amazonaws.com
+      #SourceAccount: !Ref 'AWS::AccountId'
+      SourceArn: !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/${CognitoUserPoolId}'
 
 Outputs:
   InputBucketName:
