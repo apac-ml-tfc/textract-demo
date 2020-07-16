@@ -3,6 +3,7 @@
 **.tmp.*
 **/build/*
 dataset/*
+**/.ipynb_checkpoints/
 
 # Editor directories and files
 .idea
