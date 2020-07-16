@@ -74,3 +74,8 @@ From here, there are just a few extra (but not trivial) **manual configuration s
 - Register a user account **through the deployed app UI**, log in, and check it's permissions are set up correctly [as described in the ui-notifications component doc](source/ocr/ui-notifications).
 
 Now you should be all set to upload images through the app UI, review low-confidence results through the Amazon A2I UI, and see the results!
+
+
+## The App in Action
+
+!["Successful extraction with review screenshot"](images/screenshot-success.png "Successful extraction with review screenshot")
