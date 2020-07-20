@@ -72,8 +72,8 @@ def handler(event, context):
                 ):
                     try:
                         # If it's the total, the value should be parseable as a number!
-                        # TODO: Allow for leading currency symbols and 3-letter-acronyms
-                        a = float(field.value.text)
+                        # TODO: Allow for other leading currency symbols and 3-letter-acronyms
+                        a = float(field.value.text.lstrip("$"))
                         total_amount_candidates.append({
                             # Again because we're post-processing, our output "Confidence" scores should be
                             # driven by the Textract outputs but adjusted to reflect our business
