@@ -65,7 +65,7 @@ If you have:
 
 ...then you can go ahead and click the button below, which will fork the repository and deploy the base solution stack(s):
 
-[![One-click deployment](https://oneclick.amplifyapp.com/button.svg)](https://console.aws.amazon.com/amplify/home#/deploy?repo=https://github.com/athewsey/textract-demo)
+[![One-click deployment](https://oneclick.amplifyapp.com/button.svg)](https://console.aws.amazon.com/amplify/home#/deploy?repo=https://github.com/apac-ml-tfc/textract-demo)
 
 From here, there are just a few extra (but not trivial) **manual configuration steps** required to complete your setup:
 
