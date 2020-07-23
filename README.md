@@ -61,7 +61,7 @@ If you have:
 
 - A [GitHub Account](https://github.com/join)
 - An [AWS Account](https://aws.amazon.com/account/)
-- **Understood that this solution may consume services outside the [Free Tier](https://aws.amazon.com/free), which will be chargeablee**
+- **Understood that this solution may consume services outside the [Free Tier](https://aws.amazon.com/free), which will be chargeable**
 
 ...then you can go ahead and click the button below, which will fork the repository and deploy the base solution stack(s):
 
