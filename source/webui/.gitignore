@@ -1,9 +1,16 @@
 .DS_Store
-.vscode/*
-**.tmp.*
-**/build/*
-dataset/*
-**/.ipynb_checkpoints/
+node_modules
+/dist
+
+# local env files
+.env.local
+.env.*.local
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # Editor directories and files
 .idea
@@ -14,7 +21,7 @@ dataset/*
 *.sln
 *.sw?
 
-# Amplify
+# AWS Amplify
 amplify/\#current-cloud-backend
 amplify/.config/local-*
 amplify/mock-data
@@ -22,7 +29,7 @@ amplify/backend/amplify-meta.json
 amplify/backend/awscloudformation
 build/
 dist/
-**/node_modules/
+node_modules/
 aws-exports.js
 awsconfiguration.json
 amplifyconfiguration.json

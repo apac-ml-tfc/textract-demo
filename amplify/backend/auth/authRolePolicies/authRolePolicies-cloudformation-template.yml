@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  env:
+    Type: String
+  authRoleName:
+    Type: String
+
+Resources:
+  AuthRoleAccessPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AWSIoTDataAccess
+            Effect: Allow
+            Action:
+              - 'iot:Connect'
+              - 'iot:Publish'
+              - 'iot:Subscribe'
+              - 'iot:Receive'
+              - 'iot:GetThingShadow'
+              - 'iot:UpdateThingShadow'
+              - 'iot:DeleteThingShadow'
+            Resource: '*'
+      Roles:
+        - !Ref authRoleName

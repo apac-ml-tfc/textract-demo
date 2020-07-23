@@ -1,0 +1,88 @@
+{
+  "Comment": "AWS Step Functions state machine for Textract orchestration",
+  "StartAt": "Pre-Processing",
+  "States": {
+    "Pre-Processing": {
+      "Comment": "Process the input artifact before forwarding to Textract - e.g. check quality, de-skew, classify, etc etc... Whatever you need!",
+      "Type": "Task",
+      "Resource": "${FunctionPreProcessArn}",
+      "Parameters": {
+        "Bucket.$": "$.detail.requestParameters.bucketName",
+        "Key.$": "$.detail.requestParameters.key"
+      },
+      "Next": "Textract",
+      "Catch": [
+        {
+          "ErrorEquals": [ "PoorQualityImage" ],
+          "Next": "Rejected"
+        }
+      ]
+    },
+    "Rejected": {
+      "Type": "Fail",
+      "Cause": "The input does not meet the minimum quality standard for processing",
+      "Error": "Rejected"
+    },
+    "Textract": {
+      "Comment": "Extract image text and structure with Amazon Textract",
+      "Type": "Task",
+      "Resource": "${FunctionCallTextractArn}",
+      "Parameters": {
+        "Input": {
+          "Bucket.$": "$.Bucket",
+          "Key.$": "$.Key"
+        },
+        "Output": {
+          "Bucket": "${RawOutputBucketName}",
+          "Prefix.$": "$.Bucket"
+        }
+      },
+      "ResultPath": "$.Textract",
+      "Next": "Post-Processing"
+    },
+    "Post-Processing": {
+      "Comment": "Process the raw Textract results into your business-level fields",
+      "Type": "Task",
+      "Resource": "${FunctionPostProcessArn}",
+      "Parameters": {
+        "Bucket.$": "$.Textract.Bucket",
+        "Key.$": "$.Textract.Key"
+      },
+      "ResultPath": "$.ModelResult",
+      "Next": "Check Confidence"
+    },
+    "Check Confidence": {
+      "Comment": "Route low-confidence results for human review (we're super permissive for now)",
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.ModelResult.Confidence",
+          "NumericGreaterThanEquals": 50,
+          "Next": "Succeeded"
+        }
+      ],
+      "Default": "Human Review"
+    },
+    "Human Review": {
+      "Comment": "Run an Amazon A2I human loop to review the annotations manually",
+      "Type": "Task",
+      "Resource":"arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "${FunctionStartHumanReviewName}",
+        "Payload": {
+          "ExecutionContext.$": "$$",
+          "Bucket.$": "$.Bucket",
+          "Key.$": "$.Key",
+          "ModelResult.$": "$.ModelResult"
+        }
+      },
+      "ResultPath": "$.HumanReview",
+      "TimeoutSeconds": 3600,
+      "Next": "Succeeded"
+    },
+    "Succeeded": {
+      "Comment": "All done! Well maybe in the real world you'd want to actually do something else...",
+      "Type": "Succeed"
+    }
+  }
+}

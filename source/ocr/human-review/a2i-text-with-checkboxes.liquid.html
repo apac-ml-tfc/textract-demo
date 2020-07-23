@@ -1,0 +1,80 @@
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css"
+  integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous"/>
+<script src="https://assets.crowd.aws/crowd-html-elements.js"></script>
+
+<script>
+  var cachedInputValues = {};
+
+  /**
+   * Reversibly clear, disable, optionalify a crowd-input when acrowd-checkbox of corresponding name=*-present clicked
+   */
+  function handleCheckBoxClick(checkbox) {
+    // Look up the linked crowd-input by the name of this crowd-checkbox:
+    if (!checkbox.name.endsWith("-present")) {
+      console.warn("Checkbox name '" + checkbox.name + "' doesn't end with -present: Ignoring click event");
+      return;
+    }
+    var inputName = checkbox.name.substring(0, checkbox.name.length - "-present".length);
+    var input = document.querySelector("crowd-input[name=" + inputName + "]");
+    if (!input) {
+      console.warn("Couldn't find input with name '" + inputName + "': Ignoring checkbox click event");
+      return;
+    }
+
+    // This function gets called against the crowd-checkbox element *before* it updates
+    if (checkbox.checked) {
+      // Checkbox being unchecked -> clear, disable, and un-require field
+      cachedInputValues[inputName] = input.value;
+      input.value = "";
+      input.disabled = true;
+      input.removeAttribute("required");
+    } else {
+      // Checkbox being checked -> restore, enable, and require field
+      if (cachedInputValues[inputName]) input.value = cachedInputValues[inputName];
+      input.disabled = false;
+      input.setAttribute("required", "");
+    }
+  }
+</script>
+
+<crowd-form>
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-xs-12 col-lg-8 col-xl-6" style="margin-top: 10px; margin-bottom: 10px; text-align: center;">
+        <!-- Or e.g. src="https://upload.wikimedia.org/wikipedia/commons/0/0b/ReceiptSwiss.jpg" for an example -->
+        <img style="max-width: 100%; max-height: 70vh" src="{{ task.input.taskObject | grant_read_access }}"/>
+      </div>
+
+      <div class="col-xs-12 col-lg-4 col-xl-6" style="margin-top: 10px; margin-bottom: 10px;">
+        <h4>Labels:</h4>
+        <!-- Empirical padding + center alignment to vertically align checkbox with crowd-input text -->
+        <div style="display: flex; align-items: center; margin: 4px 0px; padding: 0px 4px; background: linear-gradient(90deg, rgba(63,81,181,0.1) 0%, rgba(63,81,181,0.1) {{ task.input.vendor.confidence }}%, rgba(63,81,181,0) {{ task.input.vendor.confidence }}%, rgba(63,81,181,0) 100%);">
+          <crowd-checkbox name="vendor-present" value="checked" checked style="flex: 0 0 auto; padding-top: 16px;" onclick="handleCheckBoxClick(this);"></crowd-checkbox>
+          <crowd-input name="vendor" label="Vendor Name" value="{{ task.input.vendor.value }}" required style="flex: 1 0 auto;"></crowd-input>
+        </div>
+        <div style="display: flex; align-items: center; margin: 4px 0px; padding: 0px 4px; background: linear-gradient(90deg, rgba(63,81,181,0.1) 0%, rgba(63,81,181,0.1) {{ task.input.date.confidence }}%, rgba(63,81,181,0) {{ task.input.date.confidence }}%, rgba(63,81,181,0) 100%);">
+          <crowd-checkbox name="date-present" value="checked" checked style="flex: 0 0 auto; padding-top: 16px;" onclick="handleCheckBoxClick(this);"></crowd-checkbox>
+          <crowd-input name="date" label="Date" value="{{ task.input.date.value }}" placeholder="YYYY-MM-DD" required style="flex: 1 0 auto;"></crowd-input>
+        </div>
+        <div style="display: flex; align-items: center; margin: 4px 0px; padding: 0px 4px; background: linear-gradient(90deg, rgba(63,81,181,0.1) 0%, rgba(63,81,181,0.1) {{ task.input.total.confidence }}%, rgba(63,81,181,0) {{ task.input.total.confidence }}%, rgba(63,81,181,0) 100%);">
+          <crowd-checkbox name="total-present" value="checked" checked style="flex: 0 0 auto; padding-top: 16px;" onclick="handleCheckBoxClick(this);"></crowd-checkbox>
+          <crowd-input name="total" label="Total" value="{{ task.input.total.value }}" required style="flex: 1 0 auto;"></crowd-input>
+        </div>
+        <div style="display: flex; align-items: center; margin: 4px 0px; padding: 0px 4px; background: linear-gradient(90deg, rgba(63,81,181,0.1) 0%, rgba(63,81,181,0.1) 0%, rgba(63,81,181,0) 0%, rgba(63,81,181,0) 100%);">
+          <crowd-checkbox name="tax-present" value="checked" checked style="flex: 0 0 auto; padding-top: 16px;" onclick="handleCheckBoxClick(this);"></crowd-checkbox>
+          <crowd-input name="tax" label="Tax (Optional)" required style="flex: 1 0 auto;"></crowd-input>
+        </div>
+      </div>
+    </div>
+  </div>
+  <short-instructions>
+    <p>Review the scanned image and amend the auto-extracted values for each field, then click Submit.</p>
+    <p>Background shading indicates the ML model confidence level for each extracted field.</p>
+    <p>For more guidance and conventions on field values (e.g. currency formats) view the full instructions.</p>
+  </short-instructions>
+
+  <full-instructions header="SmartOCR Review">
+    <p><b>Psyche!</b> It's a demo, do what you like...<p>
+    <p>All fields are required unless you explicitly un-tick the checkbox to indicate that field isn't in the document.</p>
+  </full-instructions>
+</crowd-form>
