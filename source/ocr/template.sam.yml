@@ -76,6 +76,11 @@ Resources:
         Rules:
           - ExpirationInDays: 7
             Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
       # Triggering Step Functions happens via CloudTrail (see below), not NotificationConfiguration here
 
   # Storage for modified source images (if pre-processing supports this)
@@ -86,6 +91,11 @@ Resources:
         Rules:
           - ExpirationInDays: 7
             Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
 
   # Raw Textract results
   RawOutputBucket:
@@ -95,6 +105,11 @@ Resources:
         Rules:
           - ExpirationInDays: 7
             Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
 
   # A2I human review loop outputs
   HumanReviewsBucket:
