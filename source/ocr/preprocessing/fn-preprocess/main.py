@@ -12,11 +12,8 @@ from botocore.exceptions import ClientError
 rekognition = boto3.client("rekognition")
 
 
-model_arn = os.environ["REKOGNITION_MODEL_ARN"]
-# TODO: Parameterize model details
-project_arn="arn:aws:rekognition:us-east-1:077546553367"
-version_name="unicorn-gym-custom-label.2020-06-08T13.55.38"
-min_inference_units=1
+default_model_arn = os.environ.get("REKOGNITION_MODEL_ARN")
+min_inference_units = int(os.environ.get("REKOGNITION_MIN_INFERENCE_UNITS", 1))
 
 LABEL_CLASSES = ("bad", "good")  # Other labels outside this set will be ignored
 ACCEPTABLE_CLASSES = ("good",)  # Any other LABEL_CLASSES labels are deemed unacceptable/"bad"
@@ -54,36 +51,17 @@ def handler(event, context):
     except KeyError as ke:
         raise MalformedRequest(f"Missing field {ke}, please check your input payload")
 
+    if "RekognitionModelArn" in event:
+        model_arn = event["RekognitionModelArn"]
+    elif default_model_arn is not None:
+        model_arn = default_model_arn
+    else:
+        raise MalformedRequest(
+            "Neither request RekognitionModelArn nor env var REKOGNITION_MODEL_ARN specified"
+        )
+
     # TODO: logging output instead of prints
     print(f"Analyzing s3://{bucket}/{photo}")
-
-    # Check the Rekognition Custom Labels model is running and start it if not:
-    try:
-        # TODO: Move this to Lambda init, or maybe ditch entirely?
-        print(f"Trying to start Rekognition model {model_arn}")
-        response=rekognition.start_project_version(
-            ProjectVersionArn=model_arn,
-            MinInferenceUnits=min_inference_units
-        )
-        # wait for the model to be in the running state
-        project_version_running_waiter = rekognition.get_waiter("project_version_running")
-        project_version_running_waiter.wait(ProjectArn=project_arn, VersionNames=[version_name])
-
-        # For debugging/logging purposes only, show the active versions:
-        describe_response = rekognition.describe_project_versions(
-            ProjectArn=project_arn,
-            VersionNames=[version_name]
-        )
-        model = next(describe_response["ProjectVersionDescriptions"])
-        print(f"{model['Status']}: {model['StatusMessage']}\n{model_arn} version {version_name}")
-    except ClientError as ce:
-        if ce.response["Error"]["Code"] == "ResourceInUseException":
-            # This is expected - let it pass
-            print(f"Model is already running: {model_arn}")
-        else:
-            raise ModelError(f"ClientError while accessing Rekognition model: {ce}")
-    except Exception as e:
-        raise ModelError(f"Unknown exception accessing Rekognition model: {e}")
 
     # Analyze the image in S3:
     # TODO: Parameterize min confidence?
@@ -94,13 +72,39 @@ def handler(event, context):
             MinConfidence=minimum_confidence,
             ProjectVersionArn=model_arn,
         )["CustomLabels"]
-    except ClientError as ce:
-        if ce.response["Error"]["Code"] == "InvalidS3ObjectException":
-            raise MalformedRequest(
-                f"Invalid S3 object location 's3://{bucket}/{photo}', please check your request'"
+    except rekognition.exceptions.ResourceNotFoundException:
+        raise ModelError(f"Resource not found: Check your Rekognition Custom Labels model ARN {model_arn}")
+    except rekognition.exceptions.ResourceNotReadyException:
+        print(f"Trying to start Rekognition model {model_arn}")
+        try:
+            start_version_response = rekognition.start_project_version(
+                ProjectVersionArn=model_arn,
+                MinInferenceUnits=min_inference_units,
             )
-        else:
-            raise ModelError(f"ClientError while querying Rekognition model: {ce}")
+            print(start_version_response)
+        except Exception as e:
+            raise ModelError(f"Model not ready and couldn't be started: {e}")
+
+        # There is a get_waiter("project_version_running") available in the Rekognition Boto3 SDK, but it
+        # requires the project ARN which at the time of writing can't be easily derived from the version ARN
+        # (because it contains a different, project-related timestamp).
+        #
+        # Anyway we only provide this convenience to auto-start the version on first invokation to simplify
+        # setup because Rek CL console doesn't currently have a UI option to start versions... So to keep our
+        # Lambda config DRY and this code simple, we'll just return an error here telling the user to try
+        # again when the model is ready.
+        raise ModelError(f"Rekognition model now deploying... Please try again shortly")
+    except rekognition.exceptions.InvalidS3ObjectException:
+        raise MalformedRequest(
+            f"Invalid S3 object location 's3://{bucket}/{photo}', please check your request'"
+        )
+    except rekognition.exceptions.ImageTooLargeException:
+        raise MalformedRequest("Image too large to process with Rekognition Custom Labels")
+    except rekognition.exceptions.InvalidImageFormatException:
+        raise MalformedRequest("Invalid image format rejected by Rekognition Custom Labels")
+    except ClientError as ce:
+        # Other client errors (incl rate limiting, access problems, etc)
+        raise ModelError(f"ClientError while querying Rekognition model: {ce}")
     except Exception as e:
         raise ModelError(f"Unknown exception querying Rekognition: {e}")
 
