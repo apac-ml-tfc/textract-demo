@@ -1,4 +1,30 @@
 {
+    "devx": {
+        "awscloudformation": {
+            "AuthRoleName": "amplify-textractdemo-devx-102446-authRole",
+            "UnauthRoleArn": "arn:aws:iam::077546553367:role/amplify-textractdemo-devx-102446-unauthRole",
+            "AuthRoleArn": "arn:aws:iam::077546553367:role/amplify-textractdemo-devx-102446-authRole",
+            "Region": "us-east-1",
+            "DeploymentBucketName": "amplify-textractdemo-devx-102446-deployment",
+            "UnauthRoleName": "amplify-textractdemo-devx-102446-unauthRole",
+            "StackName": "amplify-textractdemo-devx-102446",
+            "StackId": "arn:aws:cloudformation:us-east-1:077546553367:stack/amplify-textractdemo-devx-102446/6a7dbb30-c1ce-11ea-8640-0e4c53e0aefd",
+            "AmplifyAppId": "d23jme8p9emnil"
+        },
+        "categories": {
+            "auth": {
+                "textractdemo6e4f45e6": {},
+                "authRolePolicies": {},
+                "cognito": {}
+            },
+            "hosting": {
+                "amplifyhosting": {
+                    "appId": "d23jme8p9emnil",
+                    "type": "manual"
+                }
+            }
+        }
+    },
     "dev": {
         "awscloudformation": {
             "AuthRoleName": "amplify-textractdemo-dev-152442-authRole",
@@ -18,6 +44,31 @@
             "hosting": {
                 "amplifyhosting": {
                     "appId": "d1562a319kz4rx",
+                    "type": "manual"
+                }
+            }
+        }
+    },
+    "master": {
+        "awscloudformation": {
+            "AuthRoleName": "amplify-textractdemo-master-31024-authRole",
+            "UnauthRoleArn": "arn:aws:iam::077546553367:role/amplify-textractdemo-master-31024-unauthRole",
+            "AuthRoleArn": "arn:aws:iam::077546553367:role/amplify-textractdemo-master-31024-authRole",
+            "Region": "us-east-1",
+            "DeploymentBucketName": "amplify-textractdemo-master-31024-deployment",
+            "UnauthRoleName": "amplify-textractdemo-master-31024-unauthRole",
+            "StackName": "amplify-textractdemo-master-31024",
+            "StackId": "arn:aws:cloudformation:us-east-1:077546553367:stack/amplify-textractdemo-master-31024/a9f1d190-cfe1-11ea-a3ac-12dc156c2e93",
+            "AmplifyAppId": "d23jme8p9emnil"
+        },
+        "categories": {
+            "auth": {
+                "cognito": {},
+                "authRolePolicies": {}
+            },
+            "hosting": {
+                "amplifyhosting": {
+                    "appId": "d23jme8p9emnil",
                     "type": "manual"
                 }
             }

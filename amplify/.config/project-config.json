@@ -7,8 +7,8 @@
         "config": {
             "SourceDir": "source/webui",
             "DistributionDir": "source/webui/dist",
-            "BuildCommand": "npm run-script build",
-            "StartCommand": "npm run-script serve"
+            "BuildCommand": "cd source/webui && npm run build",
+            "StartCommand": "cd source/webui && npm run serve"
         }
     },
     "providers": [
