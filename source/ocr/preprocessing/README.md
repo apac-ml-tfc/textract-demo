@@ -1,53 +1,123 @@
 # Image Pre-Processing
 
-Using [Amazon SageMaker Ground Truth](https://aws.amazon.com/sagemaker/groundtruth/) and [Amazon Rekognition Custom Labels](https://aws.amazon.com/rekognition/custom-labels-features/) to build an image classifier with no ML experience required!
+Before sending the source images to Textract, we may wish to:
+
+1. **Validate** their quality (or else reject early in the pipeline) or otherwise **classify** the type of document being received
+2. **Enhance** the image for OCR to mitigate minor quality issues
+3. **Extract** particular regions of interest, to remove other noise
+
+In this example we demonstrate (1) with a small example dataset, and show some architectural tips for (2) and (3).
 
 
 ## Component Architecture
 
-The objective of the pre-processing flow is to classify the incoming image as "good" (acceptable for OCR) or "bad" (likely to yield error results) to detect and reject poor quality images earlier in the process.
+With [Amazon Rekognition Custom Labels](https://aws.amazon.com/rekognition/custom-labels-features/), we can train and deploy an image classification model (for validation or classification) or bounding-box object detection model (could be useful for region-of-interest extraction) - with no ML experience required: Just labelled data.
 
-Note that many practical solutions may also attempt **enhancing** the provided images to correct skew, blur, lighting problems or other common issues: For this reason, this component **returns an S3 URI** (rather than a 'yes/no' check) - to make it easier to extend.
+For basic image processing techniques (for enhancement), it may be sufficient to install [OpenCV](https://opencv.org/) directly in our AWS Lambda runtime and process the image there.
 
-<br>![alt text](img-preprocessing-flow.png "Service Flow") 
+In our toy example the annotation is **simple** (classification, rather than bounding box), **small** (very few samples), and **already done** (images sorted into folders): But we'll show how you can take advantage of [Amazon SageMaker Ground Truth](https://aws.amazon.com/sagemaker/groundtruth/) to accelerate real-world data labelling tasks.
+
+To maintain flexibility on whether the component simply **validates** images or in some way **modifies** them, we have our processing function return a **(potentially changed) S3 URI** - rather than just a label.
+
+The resulting architecture is as shown below:
+
+<br>![alt text](images/preprocessing-flow.png "Service Flow") 
 
 
-## Setup Steps
+## Post-Deployment Setup
 
 To set up this module after deploying the solution, you'll need to:
 
-- **Label** some training data of good & bad images
-- **Train** a Rekognition Custom Labels solution
-- **Deploy** the model and connect it to the demo solution stack
+1. [**Fetch**](#1.-Fetch-the-Data) the training data (or bring your own!) into your environment
+1. [**(Optionally) Label**](#2.-(Optionally)-Label-the-data) the images as "good" or "bad"
+2. [**Train**](#3.-Train-the-Model) a Rekognition Custom Labels solution
+3. [**Deploy**](#4.-Deploy-and-Integrate) the model: connecting it to the demo solution stack
 
-### [1. Label the Data](groundtruth-labelling)
+### 1. Fetch the Data
 
-> **Note:** Since we're just doing a toy classification problem with a small dataset, it's possible to skip the SageMaker Ground Truth step and just organize your images into folders named "bad" and "good" in S3!
->
-> ...But this is a good opportunity to see how SageMaker Ground Truth could help you with image annotation workflows and distributing annotation effort between teams.
+**Locate your training data bucket:**
 
-Pre-requisites: Load the Training Image data set to the S3 bucket.
-1. Go to the AWS console Amazon SageMaker-->GroundTruth
-2. Naviagte to the Labeling Workforces menu. Create a "Private" labelling workforce.  private team with the team members email id. This shall sent an invitation email. Accept the email invitation
-3. Navigate to the Labeling jobs and create a new labelling Job.
-4. Login to the Portal
-5. Manually classify individual images as "good/bad"
-6. Once the labelling is completed, it shall generate a output manifest in the location s3://$BUCKET_NAME/$JOB_NAME/manifests/output.manifest
-7. Once the output.manifest file is generated that completes the first process step of "manual labelling" of images using groundtruth
+- From the [S3 Console](https://s3.console.aws.amazon.com/s3/home), find the `PreprocessTrainingBucket` created for you by the CloudFormation stack: Its name should include this phrase, but will have some auto-generated prefix and suffix from CloudFormation/Amplify.
+- If you're not able to find the bucket in S3, go to your [CloudFormation Stack](https://console.aws.amazon.com/cloudformation/home#/stacks) and search in the *"Resources"* tab.
+- If you created the stack via AWS Amplify and don't know your CloudFormation Stack Name, it will be something like `amplify-{AppName}-{BranchName}-{RandomNumber}-processing-{BranchName}`
 
-### [2. Train the Model](rekognition-ml-model)
+**Download the sample data:**
 
-1. Navigate to Services-->Amazon Rekognition Custom Labels menu
-2. Create a Datasets[Refer screenshots]
-3. Create a Project and Train the model
-4. Once the model is trained you could view the results from "View Test Results"
-5. Use the API Code to test the model from the AWS CLI
+Download the sample (approx 100MB) `receipts.zip` from whichever of our S3 hosts is most convenient for your region:
+
+| Region | URL |
+|:------ |:--- |
+| US East (N. Virginia) | https://public-asean-textract-demo-us-east-1.s3.amazonaws.com/receipts.zip |
+| Asia Pacific (Singapore) | https://public-asean-textract-demo-ap-southeast-1.s3-ap-southeast-1.amazonaws.com/receipts.zip |
+
+**Load the data into your bucket**
+
+You can simply **extract** `receipts.zip` on your local computer and then drag & drop the resulting `good/` and `bad/` folders into your `PreprocessTrainingBucket` via the [S3 Console](https://s3.console.aws.amazon.com/s3/home).
 
 
-### [3. Deploy and Integrate]()
+### 2. (Optionally) Label the Data
 
-1. Copy your model ARN from the [Rekognition Custom Labels Console](https://console.aws.amazon.com/rekognition/custom-labels) as before
-1. In the [AWS Lambda Console](https://console.aws.amazon.com/lambda/), find your deployed `FunctionPreProcess` function
-1. In the Lambda function **Configuration** page, set the `REKOGNITION_MODEL_ARN` **environment variable** to your model ARN
+Since we have a toy, pre-labelled dataset for you, it's possible to skip SageMaker Ground Truth and import the S3 dataset directly to Rekognition Custom Labels.
+
+**To annotate the images in SageMaker Ground Truth:**
+
+- Follow the instructions in [groundtruth-labelling](groundtruth-labelling/README.md) to annotate your images.
+- Open the [Amazon Rekognition Custom Labels Console](https://console.aws.amazon.com/rekognition/custom-labels) and navigate to **Datasets** from the left sidebar (which might be collapsed at first, if you're new to the service).
+- Click **Create dataset** and select the option to *Import images labelled by Amazon SageMaker Ground Truth*. You'll need to give the location of your **output manifest file** as created by the completed labelling job.
+
+You shouldn't need to do any additional S3 bucket permissions configuration (if prompted), because this is set up by the CloudFormation stack. The dataset creation should look something like this:
+
+![Rekognition Create Dataset (Ground Truth) Screenshot](images/rekcl-create-dataset-smgt.png "Rekognition Create Dataset (Ground Truth) Screenshot")
+
+**To skip data annotation and import directly:**
+
+- Open the [Amazon Rekognition Custom Labels Console](https://console.aws.amazon.com/rekognition/custom-labels) and navigate to **Datasets** from the left sidebar (which might be collapsed at first, if you're new to the service).
+- Click **Create dataset** and select the option to *Import images from an Amazon S3 bucket*. You'll need to give the location of your **output manifest file** as created by the completed labelling job.
+- Provide the S3 location where your `good` and `bad` folders are uploaded.
+- **Enable automatic labelling** so your images will be automatically classified from their folder name.
+
+![Rekognition Create Dataset (S3) Screenshot](images/rekcl-create-dataset-s3.png "Rekognition Create Dataset (S3) Screenshot")
+
+Whichever method you chose, you should now see a dataset in the [Rekognition Custom Labels Console 'Datasets' list](https://console.aws.amazon.com/rekognition/custom-labels#/datasets).
+
+### 3. Train the Model
+
+- Go to the [Projects List](https://console.aws.amazon.com/rekognition/custom-labels#/projects) of the Amazon Rekognition Custom Labels Console and click **Create project**: Select a name that works for your context, e.g. `demo-receipts-classifier`.
+- Either from the main page or after clicking on the project, click **"Train new model"**.
+- The correct *Project ARN* should have pre-populated for you - otherwise you can select a different project by name using the drop-down.
+- In **Choose training dataset**, select the Custom Labels dataset we just created above
+- In **Create test set**, you can either:
+  - Apply good ML practice by selecting *"Split training dataset"* (since we don't have a separate test set defined in our example), or
+  - Maximise performance on the (tiny) provided dataset by selecting *"Choose an existing test dataset"* and picking the same dataset again. In this case the model performance metrics won't be very meaningful, but our dataset is so small we know generalization won't be amazing anyway!
+
+![Rekognition Train Model Screenshot](images/rekcl-train-model-split.png "Rekognition Train Model Screenshot")
+
+Start the training process, and refresh the console periodically to check on the status of the job. 
+
+Start the training process, and then you'll need to wait until the training completes. When the model reaches `TRAINING_COMPLETED` status, it's ready to deploy. If you selected to use the same dataset for training and test, you'll likely see a reported [F1 score](https://en.wikipedia.org/wiki/F1_score) of `1.000` - but if you chose to split the dataset you may see a significantly lower (and more representative!) figure.
+
+![Rekognition Model List Screenshot](images/rekcl-model-statuses.png "Rekognition Model List Screenshot")
+
+### 3. Deploy and Integrate
+
+Once your model has finished training, click on its name to view its full details page and copy the **model ARN**, which should have a format something like:
+
+```
+arn:aws:rekognition:us-east-1:123456789012:project/receipt-classification/version/receipt-classification.2020-08-03T15.57.13/1596441361045
+```
+
+Next, in the [AWS Lambda Console](https://console.aws.amazon.com/lambda/), find your deployed `FunctionPreProcess` function.
+
+In the Lambda function **Configuration** page, set the `REKOGNITION_MODEL_ARN` **environment variable** to your model ARN.
 
 Your workflow should now be connected and ready to use the model for incoming requests!
+
+Because (at the time of writing) there is no UI button to start (deploy) and stop (de-provision) a Rekognition Custom Labels model, we've set the Lambda function up to request the model to start if it isn't in the `RUNNING` state.
+
+- This means the first invokation will fail, but kick off the deployment
+- Any subsequent invokations while the model is still `STARTING` will also return an error
+- ...But once the model is `RUNNING` it should work fine!
+
+> ⚠️ **Note:** you're charged by provisioned capacity for the time that a Rekognition Custom Labels model is deployed, regardless of whether any requests are received.
+>
+> To clean up resources when you're done experimenting, you can use the `aws rekognition stop-project-version` [AWS CLI](https://aws.amazon.com/cli/) command.

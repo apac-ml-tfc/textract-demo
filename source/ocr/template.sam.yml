@@ -68,6 +68,16 @@ Resources:
 
 ##########  CORE DATA STORES  ##########
   # Destination for uploads from client UI (objects trigger workflow)
+  PreprocessTrainingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # Destination for uploads from client UI (objects trigger workflow)
   RawInputBucket:
     Type: AWS::S3::Bucket
     Condition: CreateUploadBucket
@@ -154,6 +164,43 @@ Resources:
         - 'arn:aws:iam::aws:policy/AdministratorAccess'
 
 ##########  PRE-PROCESSING  ##########
+  # Give SageMaker Ground Truth and Rekognition Custom Labels access to the Training Bucket
+  RekTrainingBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PreprocessTrainingBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AWSRekognitionS3AclBucketRead20191011
+            Effect: Allow
+            Principal:
+              Service: rekognition.amazonaws.com
+            Action:
+              - 's3:GetBucketAcl'
+              - 's3:GetBucketLocation'
+            Resource: !GetAtt PreprocessTrainingBucket.Arn
+          - Sid: AWSRekognitionS3GetBucket20191011
+            Effect: Allow
+            Principal:
+              Service: rekognition.amazonaws.com
+            Action:
+              - 's3:GetObject'
+              - 's3:GetObjectAcl'
+              - 's3:GetObjectVersion'
+              - 's3:GetObjectTagging'
+            Resource: !Sub '${PreprocessTrainingBucket.Arn}/*'
+          - Sid: AWSRekognitionS3PutObject20191011
+            Effect: Allow
+            Principal:
+              Service: rekognition.amazonaws.com
+            Action:
+              - 's3:PutObject'
+            Resource: !Sub '${PreprocessTrainingBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: bucket-owner-full-control
+            
   FunctionPreProcess:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -279,19 +326,27 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
+                  - 's3:GetBucketAcl'
+                  - 's3:GetBucketLocation'
                   - 's3:ListBucket'
                 Resource:
                   - !If [CreateUploadBucket, !GetAtt RawInputBucket.Arn, !Sub 'arn:aws:s3:::${UploadBucketName}']
+                  - !GetAtt PreprocessTrainingBucket.Arn
                   - !GetAtt ProcessedInputBucket.Arn
                   - !GetAtt RawOutputBucket.Arn
                   - !GetAtt HumanReviewsBucket.Arn
               - Effect: Allow
                 Action:
-                  - 's3:PutObject'
-                  - 's3:GetObject'
                   - 's3:DeleteObject'
+                  - 's3:GetObject'
+                  - 's3:GetObjectAcl'
+                  - 's3:GetObjectTagging'
+                  - 's3:GetObjectVersion'
+                  - 's3:ListBucket'
+                  - 's3:PutObject'
                 Resource:
                   - !If [CreateUploadBucket, !Sub '${RawInputBucket.Arn}/*', !Sub 'arn:aws:s3:::${UploadBucketName}/*']
+                  - !Sub '${PreprocessTrainingBucket.Arn}/*'
                   - !Sub '${ProcessedInputBucket.Arn}/*'
                   - !Sub '${RawOutputBucket.Arn}/*'
                   - !Sub '${HumanReviewsBucket.Arn}/*'
@@ -640,3 +695,6 @@ Outputs:
   InputBucketName:
     Description: Input bucket to upload images for OCR
     Value: !If [CreateUploadBucket, !Ref RawInputBucket, !Ref UploadBucketName]
+  PreprocessTrainingBucketName:
+    Description: Bucket to store pre-processing training data in
+    Value: !Ref PreprocessTrainingBucket
