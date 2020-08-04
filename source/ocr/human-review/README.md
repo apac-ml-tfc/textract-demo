@@ -8,7 +8,7 @@ This notebook is triggered by a lambda function which has done postprocess works
 
 After the solution stack has deployed, you'll still need to set up the following:
 
-- Create a private team in Amazon SageMaker Ground Truth: setting yourself up with credentials as a reviewer.
+- Create a private team in Amazon SageMaker Ground Truth, setting yourself up with credentials as a reviewer (or re-use your existing team if you created one already for the [preprocessing module](../preprocessing))
 - Upload the provided [worker task template](a2i-text-with-checkboxes.liquid.html) as a custom task template in Amazon A2I
 - Create an A2I Human Review Workflow linking the template and your review 'team'
 - Find your `FunctionStartHumanReview` function in the [AWS Lambda Console](https://console.aws.amazon.com/lambda/home)

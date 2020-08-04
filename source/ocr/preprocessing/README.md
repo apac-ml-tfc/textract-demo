@@ -61,7 +61,7 @@ Since we have a toy, pre-labelled dataset for you, it's possible to skip SageMak
 
 **To annotate the images in SageMaker Ground Truth:**
 
-- Follow the instructions in the [groundtruth-labelling](groundtruth-labelling) folder to annotate your images.
+- Follow the instructions in [groundtruth-labelling](groundtruth-labelling/README.md) to annotate your images.
 - Open the [Amazon Rekognition Custom Labels Console](https://console.aws.amazon.com/rekognition/custom-labels) and navigate to **Datasets** from the left sidebar (which might be collapsed at first, if you're new to the service).
 - Click **Create dataset** and select the option to *Import images labelled by Amazon SageMaker Ground Truth*. You'll need to give the location of your **output manifest file** as created by the completed labelling job.
 
