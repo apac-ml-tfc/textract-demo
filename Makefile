@@ -42,6 +42,7 @@ deploy.processing: ##=> Deploy OCR processing service using SAM
 			--template-file template-packaged.tmp.yml \
 			--stack-name $${STACK_NAME}-processing-$${AWS_BRANCH} \
 			--capabilities CAPABILITY_IAM \
+			--no-fail-on-empty-changeset \
 			--parameter-overrides \
 				UploadBucketName=$${UPLOAD_BUCKET_NAME} \
 				CognitoIdentityPoolId=$${COGNITO_IDENTITY_POOL_ID} \
