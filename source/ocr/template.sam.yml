@@ -209,7 +209,7 @@ Resources:
       CodeUri: ./preprocessing/fn-preprocess/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.7
+      Runtime: python3.8
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       Environment:
@@ -230,7 +230,7 @@ Resources:
       CodeUri: ./textract-integration/fn-call-textract/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.7
+      Runtime: python3.8
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       Environment:
@@ -249,7 +249,7 @@ Resources:
       CodeUri: ./postprocessing/fn-postprocess/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.7
+      Runtime: python3.8
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       # Layers:
@@ -265,7 +265,7 @@ Resources:
       CodeUri: ./human-review/fn-start-human-review/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.7
+      Runtime: python3.8
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       Environment:
@@ -282,7 +282,7 @@ Resources:
       CodeUri: ./human-review/fn-human-review-callback/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.7
+      Runtime: python3.8
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       # Environment:
@@ -408,7 +408,7 @@ Resources:
             Action: 'sts:AssumeRole'
       Path: /
       ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/AWSLambdaFullAccess'
+        - 'arn:aws:iam::aws:policy/AWSLambda_FullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSageMakerFullAccess'
         - !Ref StepFunctionsXRayAccessPolicy
         - !Ref CloudWatchLogsDeliveryFullAccessPolicy
@@ -584,7 +584,7 @@ Resources:
       CodeUri: ./ui-notifications/fn-notify-progress/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.7
+      Runtime: python3.8
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       Environment:
@@ -654,7 +654,7 @@ Resources:
       CodeUri: ./ui-notifications/fn-setup-iot-auth/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.7
+      Runtime: python3.8
       Role: !GetAtt LambdaAdminRole.Arn
       # Long timeout for CloudFormation resource setup, but note that Cognito Lambda triggers must respond within 5sec!
       Timeout: 30
