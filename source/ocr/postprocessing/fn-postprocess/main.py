@@ -65,9 +65,10 @@ def handler(event, context):
         for key in amount_form_keys:
             fields = page.form.searchFieldsByKey(key)
             for field in fields:
+                key_lower = field.key.text.lower()
                 # TODO: This should re-use amount_form_keys
                 if (
-                    ("total" in field.key.text.lower() or "amount" in field.key.text.lower())
+                    ("total" in key_lower or "amount" in key_lower)
                     and field.value is not None
                 ):
                     try:
@@ -77,8 +78,13 @@ def handler(event, context):
                         total_amount_candidates.append({
                             # Again because we're post-processing, our output "Confidence" scores should be
                             # driven by the Textract outputs but adjusted to reflect our business
-                            # understanding... We'll take another pretty simple choice here:
-                            "Confidence": min(field.key.confidence, field.value.confidence),
+                            # understanding... We'll consider both the key and value confidence scores, and
+                            # keep a candidate in the list but reduce its confidence if the key contains
+                            # other text indicating it might only be a subtotal:
+                            "Confidence": (
+                                min(field.key.confidence, field.value.confidence)
+                                * (0.5 if "sub" in key_lower else 1.)
+                            ),
                             "Value": field.value.text,
                         })
                     except Exception as e:
