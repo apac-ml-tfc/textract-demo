@@ -33,6 +33,8 @@ To set up this module after deploying the solution, you'll need to:
 2. [**Train**](#3.-Train-the-Model) a Rekognition Custom Labels solution
 3. [**Deploy**](#4.-Deploy-and-Integrate) the model: connecting it to the demo solution stack
 
+For a largely automated guide to this process via the AWS SDKs, see the [Automated Setup.ipynb](Automated%20Setup.ipynb) notebook in this folder. Otherwise, you can follow along with the instructions below:
+
 ### 1. Fetch the Data
 
 **Locate your training data bucket:**
