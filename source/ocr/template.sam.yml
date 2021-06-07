@@ -8,16 +8,16 @@ Parameters:
   RekognitionModelArn:
     Description: >-
       ARN of a Rekognition Custom Labels classifier model for pre-processing images. You may leave this blank and
-      manually configure via FunctionPreProcess Lambda environment variable later, but all requests will fail at the
-      pre-processing stage until it's set up.
+      manually configure via AWS SSM Parameter Store later, but all requests will fail at the pre-processing stage
+      until it's set up.
     Type: String
     # TODO: Link through Amplify to stop redeploys clearing state if set
     Default: ''
   DefaultHumanFlowArn:
     Description: >-
       ARN of an Amazon A2I workflow for human review of (post-processed) extractions. You may leave this blank and
-      manually configure via FunctionStartHumanReview Lambda environment variable later, but all requests deemed to
-      require human review will fail at the human review stage until it's set up.
+      manually configure via AWS SSM Parameter Store later, but all requests deemed to require human review will fail
+      at the human review stage until it's set up.
     Type: String
     # TODO: Link through Amplify to stop redeploys clearing state if set
     Default: ''
