@@ -69,8 +69,8 @@ If you have:
 
 From here, there are just a few extra (but not trivial) **manual configuration steps** required to complete your setup:
 
-- Create a [Rekognition Custom Labels](https://console.aws.amazon.com/rekognition/custom-labels) model [as described in the preprocessing component doc](source/ocr/preprocessing), and configure your `FunctionPreProcess` Lambda function's environment variable to reference it.
-- Create an [Amazon A2I](https://docs.aws.amazon.com/sagemaker/latest/dg/a2i-use-augmented-ai-a2i-human-review-loops.html) human review flow and workforce [as described in the human-review component doc](source/ocr/human-review), and configure your `FunctionStartHumanReview` Lambda function's environment variable to reference the flow.
+- Create a [Rekognition Custom Labels](https://console.aws.amazon.com/rekognition/custom-labels) model [as described in the preprocessing component doc](source/ocr/preprocessing), and configure your stack's `RekognitionModelArn` [SSM Parameter](https://console.aws.amazon.com/systems-manager/parameters/?&tab=Table) to reference it.
+- Create an [Amazon A2I](https://docs.aws.amazon.com/sagemaker/latest/dg/a2i-use-augmented-ai-a2i-human-review-loops.html) human review flow and workforce [as described in the human-review component doc](source/ocr/human-review), and configure your stack's `DefaultHumanFlowArn` [SSM Parameter](https://console.aws.amazon.com/systems-manager/parameters/?&tab=Table) to reference it.
 - Register a user account **through the deployed app UI**, log in, and check it's permissions are set up correctly [as described in the ui-notifications component doc](source/ocr/ui-notifications).
 
 Now you should be all set to upload images through the app UI, review low-confidence results through the Amazon A2I UI, and see the results!

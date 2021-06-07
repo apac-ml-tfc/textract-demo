@@ -106,18 +106,18 @@ Once your model has finished training, click on its name to view its full detail
 arn:aws:rekognition:us-east-1:123456789012:project/receipt-classification/version/receipt-classification.2020-08-03T15.57.13/1596441361045
 ```
 
-Next, in the [AWS Lambda Console](https://console.aws.amazon.com/lambda/), find your deployed `FunctionPreProcess` function.
+Next, in the [AWS SSM Parameter Store](https://console.aws.amazon.com/systems-manager/parameters/?&tab=Table) console, find the deployed stack's `RekognitionModelArn` parameter.
 
-In the Lambda function **Configuration** page, set the `REKOGNITION_MODEL_ARN` **environment variable** to your model ARN.
+**Edit** your parameter to set the *Value* as your model ARN.
 
 Your workflow should now be connected and ready to use the model for incoming requests!
 
-Because (at the time of writing) there is no UI button to start (deploy) and stop (de-provision) a Rekognition Custom Labels model, we've set the Lambda function up to request the model to start if it isn't in the `RUNNING` state.
+You can start (deploy) and stop (de-provision) your Rekognition Custom Labels models through the [Rekognition Custom Labels console](https://console.aws.amazon.com/rekognition/custom-labels#/projects). If the provided model is not already `RUNNING`, the Lambda function will request it to start when called.
 
-- This means the first invokation will fail, but kick off the deployment
-- Any subsequent invokations while the model is still `STARTING` will also return an error
+- This means the first invocation will fail, but kick off the deployment
+- Any subsequent invocations while the model is still `STARTING` will also return an error
 - ...But once the model is `RUNNING` it should work fine!
 
 > ⚠️ **Note:** you're charged by provisioned capacity for the time that a Rekognition Custom Labels model is deployed, regardless of whether any requests are received.
 >
-> To clean up resources when you're done experimenting, you can use the `aws rekognition stop-project-version` [AWS CLI](https://aws.amazon.com/cli/) command.
+> To clean up resources when you're done experimenting, you can use the `aws rekognition stop-project-version` [AWS CLI](https://aws.amazon.com/cli/) command or `STOP` your models through the Rekognition Custom Labels console.

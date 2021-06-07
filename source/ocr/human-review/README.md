@@ -11,10 +11,11 @@ After the solution stack has deployed, you'll still need to set up the following
 - Create a private team in Amazon SageMaker Ground Truth, setting yourself up with credentials as a reviewer (or re-use your existing team if you created one already for the [preprocessing module](../preprocessing))
 - Upload the provided [worker task template](a2i-text-with-checkboxes.liquid.html) as a custom task template in Amazon A2I
 - Create an A2I Human Review Workflow linking the template and your review 'team'
-- Find your `FunctionStartHumanReview` function in the [AWS Lambda Console](https://console.aws.amazon.com/lambda/home)
-- In the (default) **Configuration** tab on the function's setup page, set the **Environment variable** `DEFAULT_FLOW_DEFINITION_ARN` to the ARN of your A2I workflow.
+- In the [AWS SSM Parameter Store](https://console.aws.amazon.com/systems-manager/parameters/?&tab=Table) console, find the deployed stack's `DefaultHumanFlowArn` parameter.
+- **Edit** your parameter to set the *Value* as the ARN of your A2I workflow.
 
 We provide a detailed walkthrough of these steps in [a2i_humanloop.ipynb](a2i_humanloop.ipynb).
+<!-- TODO: Update the notebook with the new SSM-based walkthrough -->
 
 > **Note**: For more than 70 official custom task UIs, check out https://github.com/aws-samples/amazon-a2i-sample-task-uis
 
