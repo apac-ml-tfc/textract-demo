@@ -8,18 +8,18 @@ Parameters:
   RekognitionModelArn:
     Description: >-
       ARN of a Rekognition Custom Labels classifier model for pre-processing images. You may leave this blank and
-      manually configure via FunctionPreProcess Lambda environment variable later, but all requests will fail at the
-      pre-processing stage until it's set up.
+      manually configure via AWS SSM Parameter Store later, but all requests will fail at the pre-processing stage
+      until it's set up.
     Type: String
-    # TODO: Link some other way through Amplify and clear this to empty default
-    Default: 'arn:aws:rekognition:us-east-1:077546553367:project/unicorn-gym-custom-label/version/unicorn-gym-custom-label.2020-06-08T13.55.38/1591599339120'
+    # TODO: Link through Amplify to stop redeploys clearing state if set
+    Default: ''
   DefaultHumanFlowArn:
     Description: >-
       ARN of an Amazon A2I workflow for human review of (post-processed) extractions. You may leave this blank and
-      manually configure via FunctionStartHumanReview Lambda environment variable later, but all requests deemed to
-      require human review will fail at the human review stage until it's set up.
+      manually configure via AWS SSM Parameter Store later, but all requests deemed to require human review will fail
+      at the human review stage until it's set up.
     Type: String
-    # TODO: Link some other way through Amplify and clear this to empty default
+    # TODO: Link through Amplify to stop redeploys clearing state if set
     Default: ''
   UploadBucketName:
     Description: >-
@@ -64,6 +64,8 @@ Metadata:
 Conditions:
   CreateUploadBucket: !Equals [!Ref UploadBucketName, '']
   AttachToCognito: !Not [!Equals [!Ref CognitoIdentityPoolId, '']]
+  HasRekognitionModelArn: !Not [!Equals [!Ref RekognitionModelArn, '']]
+  HasDefaultHumanFlowArn: !Not [!Equals [!Ref DefaultHumanFlowArn, '']]
 Resources:
 
 ##########  CORE DATA STORES  ##########
@@ -162,6 +164,59 @@ Resources:
               - 'sts:AssumeRole'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/AdministratorAccess'
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+        - 'arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess'
+
+  # Attach this policy separately to resolve circular dependencies on the Lambda role:
+  LambdaPreProcessPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: PreProcessingPerms
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'ssm:GetParameter'
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${RekognitionModelArnParam}'
+          - Effect: Allow
+            Action:
+              - 'rekognition:DetectCustomLabels'
+              - 'rekognition:StartProjectVersion'
+            Resource: '*'
+      Roles: 
+        - !Ref LambdaAdminRole
+
+  # Attach this policy separately to resolve circular dependencies on the Lambda role:
+  LambdaPostProcessPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: PostProcessingPerms
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'ssm:GetParameter'
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${DefaultHumanFlowArnParam}'
+          - Effect: Allow
+            Action:
+              - 's3:GetObject'
+            Resource: !Sub '${HumanReviewsBucket.Arn}/*'
+          - Effect: Allow
+            Action:
+              - 'sagemaker:StartHumanLoop'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - 'stepfunctions:SendTaskFailure'
+              - 'stepfunctions:SendTaskHeartbeat'
+              - 'stepfunctions:SendTaskSuccess'
+            Resource: '*'
+      Roles: 
+        - !Ref LambdaAdminRole
 
 ##########  PRE-PROCESSING  ##########
   # Give SageMaker Ground Truth and Rekognition Custom Labels access to the Training Bucket
@@ -200,6 +255,14 @@ Resources:
             Condition:
               StringEquals:
                 s3:x-amz-acl: bucket-owner-full-control
+
+  RekognitionModelArnParam:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: ARN of the Rekognition Custom Labels model for pre-processing
+      Name: !Sub '/${AWS::StackName}/RekognitionModelArn'
+      Type: String
+      Value: !If [HasRekognitionModelArn, !Ref RekognitionModelArn, 'undefined']
             
   FunctionPreProcess:
     Type: 'AWS::Serverless::Function'
@@ -209,14 +272,14 @@ Resources:
       CodeUri: ./preprocessing/fn-preprocess/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.7
+      Runtime: python3.8
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       Environment:
         Variables:
           # TODO: Parameterize
           LAMBDA_ENHANCED_IMAGE_ARN: 'arn:aws:lambda:us-east-1:077546553367:function:nutchanon-preprocessing:$LATEST'
-          REKOGNITION_MODEL_ARN: !Ref RekognitionModelArn
+          REKOGNITION_MODEL_ARN_PARAM: !Ref RekognitionModelArnParam
       # Layers:
       #   - !Ref CommonCodeLayer
 
@@ -230,7 +293,7 @@ Resources:
       CodeUri: ./textract-integration/fn-call-textract/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.7
+      Runtime: python3.8
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       Environment:
@@ -249,7 +312,7 @@ Resources:
       CodeUri: ./postprocessing/fn-postprocess/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.7
+      Runtime: python3.8
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       # Layers:
@@ -257,6 +320,14 @@ Resources:
 
 
 ##########  HUMAN REVIEW  ##########
+  DefaultHumanFlowArnParam:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: ARN of the A2I Human Loop for online human result review
+      Name: !Sub '/${AWS::StackName}/DefaultHumanFlowArn'
+      Type: String
+      Value: !If [HasDefaultHumanFlowArn, !Ref DefaultHumanFlowArn, 'undefined']
+
   FunctionStartHumanReview:
     Type: 'AWS::Serverless::Function'
     Properties:
@@ -265,12 +336,12 @@ Resources:
       CodeUri: ./human-review/fn-start-human-review/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.7
+      Runtime: python3.8
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       Environment:
         Variables:
-          DEFAULT_FLOW_DEFINITION_ARN: !Ref DefaultHumanFlowArn
+          DEFAULT_FLOW_DEFINITION_ARN_PARAM: !Ref DefaultHumanFlowArnParam
       # Layers:
       #   - !Ref CommonCodeLayer
 
@@ -282,7 +353,7 @@ Resources:
       CodeUri: ./human-review/fn-human-review-callback/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.7
+      Runtime: python3.8
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       # Environment:
@@ -408,7 +479,7 @@ Resources:
             Action: 'sts:AssumeRole'
       Path: /
       ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/AWSLambdaFullAccess'
+        - 'arn:aws:iam::aws:policy/AWSLambda_FullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSageMakerFullAccess'
         - !Ref StepFunctionsXRayAccessPolicy
         - !Ref CloudWatchLogsDeliveryFullAccessPolicy
@@ -584,7 +655,7 @@ Resources:
       CodeUri: ./ui-notifications/fn-notify-progress/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.7
+      Runtime: python3.8
       Role: !GetAtt LambdaAdminRole.Arn
       Timeout: 30
       Environment:
@@ -654,7 +725,7 @@ Resources:
       CodeUri: ./ui-notifications/fn-setup-iot-auth/
       Handler: main.handler
       MemorySize: 256
-      Runtime: python3.7
+      Runtime: python3.8
       Role: !GetAtt LambdaAdminRole.Arn
       # Long timeout for CloudFormation resource setup, but note that Cognito Lambda triggers must respond within 5sec!
       Timeout: 30

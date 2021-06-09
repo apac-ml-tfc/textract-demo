@@ -8,6 +8,15 @@ This folder is where all our non-Amplify-managed resources are defined, includin
 
 **Yes!**
 
+For some AWS Regions, we have pre-built CloudFormation stacks already available: Just click the buttons below and follow through the console workflow to deploy in your account.
+
+| Region | Deployment Link |
+|:------:|:---------------:|
+| **ap-southeast-1** (Singapore) | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://ap-southeast-1.console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=ocr-e2e-demo&templateURL=https://s3.ap-southeast-1.amazonaws.com/public-asean-textract-demo-ap-southeast-1/textract/ocr-stack.yml) |
+| **us-east-1** (N. Virginia) | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://us-east-1.console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=ocr-e2e-demo&templateURL=https://s3.us-east-1.amazonaws.com/public-asean-textract-demo-us-east-1/textract/ocr-stack.yml) |
+
+**For other regions**, you'll need to download this source code and build the stack yourself:
+
 - Install the [AWS SAM CLI](https://aws.amazon.com/serverless/sam/)
 - Check out the example commands as Amplify runs them in the [Makefile](../Makefile)
 

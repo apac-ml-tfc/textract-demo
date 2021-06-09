@@ -5,10 +5,10 @@
 AWS_BRANCH ?= "dev"
 STACK_NAME ?= "UNDEFINED"
 DEPLOYMENT_BUCKET_NAME ?= "UNDEFINED"
-UPLOAD_BUCKET_NAME ?= "UNDEFINED"
-COGNITO_IDENTITY_POOL_ID ?= "UNDEFINED"
-COGNITO_USER_POOL_ID ?= "UNDEFINED"
 SAM_BUILD_EXTRA_ARGS ?= ""
+COGNITO_IDENTITY_POOL_ID ?= ""
+COGNITO_USER_POOL_ID ?= ""
+UPLOAD_BUCKET_NAME ?= ""
 
 target:
 	$(info ${HELP_MESSAGE})
@@ -44,15 +44,9 @@ deploy.processing: ##=> Deploy OCR processing service using SAM
 			--capabilities CAPABILITY_IAM \
 			--no-fail-on-empty-changeset \
 			--parameter-overrides \
-				UploadBucketName=$${UPLOAD_BUCKET_NAME} \
-				CognitoIdentityPoolId=$${COGNITO_IDENTITY_POOL_ID} \
-				CognitoUserPoolId=$${COGNITO_USER_POOL_ID}
-		# 	BookingTable=/$${AWS_BRANCH}/service/amplify/storage/table/booking \
-		# 	FlightTable=/$${AWS_BRANCH}/service/amplify/storage/table/flight \
-		# 	CollectPaymentFunction=/$${AWS_BRANCH}/service/payment/function/collect \
-		# 	RefundPaymentFunction=/$${AWS_BRANCH}/service/payment/function/refund \
-		# 	AppsyncApiId=/$${AWS_BRANCH}/service/amplify/api/id \
-		# 	Stage=$${AWS_BRANCH}
+				UploadBucketName=$(UPLOAD_BUCKET_NAME) \
+				CognitoIdentityPoolId=$(COGNITO_IDENTITY_POOL_ID) \
+				CognitoUserPoolId=$(COGNITO_USER_POOL_ID)
 
 export.parameter:
 	$(info [+] Adding new parameter named "${NAME}")
@@ -90,23 +84,26 @@ define HELP_MESSAGE
 
 	Environment variables:
 
-	These variables are automatically filled at CI time except STRIPE_SECRET_KEY
-	If doing a dirty/individual/non-ci deployment locally you'd need them to be set
-
 	AWS_BRANCH: "dev"
 		Description: Feature branch name used as part of stacks name; added by Amplify Console by default
-	FLIGHT_TABLE_NAME: "Flight-hnxochcn4vfdbgp6zaopgcxk2a-xray"
+	STACK_NAME: "sm100"
+		Description: CloudFormation stack name to deploy/redeploy to.
+	DEPLOYMENT_BUCKET_NAME: "UNDEFINED"
+		Description: Amazon S3 bucket for staging built SAM Lambda bundles and assets.
+	DEPLOYMENT_BUCKET_PREFIX: ""
+		Description: For publishing to a prefix in your deployment bucket, instead of root. Should end
+		  in a slash if set.
+	SAM_BUILD_EXTRA_ARGS: ""
+		Description: Extra arguments to pass to AWS SAM build, if necessary
+
+	COGNITO_IDENTITY_POOL_ID: ""
+		Description: (Optional) existing Cognito identity pool to configure with permissions for
+			progress notifications. Should be set from Amplify config.
+	COGNITO_USER_POOL_ID: ""
+		Description: (Optional) existing Cognito user pool to configure with permissions for progress
+			notifications. Should be set from Amplify config.
+	UPLOAD_BUCKET_NAME: ""
 		Description: Flight Table name created by Amplify for Catalog service
-	STACK_NAME: "awsserverlessairline-twitch-20190705130553"
-		Description: Stack Name already deployed; used for dirty/individual deployment
-	DEPLOYMENT_BUCKET_NAME: "a_valid_bucket_name"
-		Description: S3 Bucket name used for deployment artifacts
-	GRAPHQL_API_ID: "hnxochcn4vfdbgp6zaopgcxk2a"
-		Description: AppSync GraphQL ID already deployed
-	BOOKING_TABLE_NAME: "Booking-hnxochcn4vfdbgp6zaopgcxk2a-xray"
-		Description: Flight Table name created by Amplify for Booking service
-	STRIPE_SECRET_KEY: "sk-test-asdf..."
-		Description: Stripe Private Secret Key generated in Stripe; manually added in Amplify Console Env Variables per App
 
 	Common usage:
 

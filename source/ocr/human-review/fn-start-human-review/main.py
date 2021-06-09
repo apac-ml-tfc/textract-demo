@@ -19,8 +19,9 @@ import boto3
 
 
 a2i = boto3.client("sagemaker-a2i-runtime")
+ssm = boto3.client("ssm")
 
-default_flow_definition_arn = os.environ.get("DEFAULT_FLOW_DEFINITION_ARN")
+default_flow_definition_arn_param = os.environ.get("DEFAULT_FLOW_DEFINITION_ARN_PARAM")
 
 
 class MalformedRequest(ValueError):
@@ -93,11 +94,19 @@ def handler(event, context):
 
         if "FlowDefinitionArn" in event:
             flow_definition_arn = event["FlowDefinitionArn"]
-        elif default_flow_definition_arn:
-            flow_definition_arn = default_flow_definition_arn
+        elif default_flow_definition_arn_param:
+            flow_definition_arn = ssm.get_parameter(
+                Name=default_flow_definition_arn_param,
+            )["Parameter"]["Value"]
+            if (not flow_definition_arn) or flow_definition_arn.lower() in ("undefined", "null"):
+                raise MalformedRequest(
+                    "Neither request FlowDefinitionArn nor expected SSM parameter are set. Got: "
+                    f"{default_flow_definition_arn_param} = '{flow_definition_arn}'"
+                )
         else:
             raise MalformedRequest(
-                "FlowDefinitionArn not specified in request and DEFAULT_FLOW_DEFINITION_ARN env var not set"
+                "FlowDefinitionArn not specified in request and DEFAULT_FLOW_DEFINITION_ARN_PARAM "
+                "env var not set"
             )
     except KeyError as ke:
         raise MalformedRequest(f"Missing field {ke}, please check your input payload")

@@ -10,9 +10,9 @@ import os
 from botocore.exceptions import ClientError
 
 rekognition = boto3.client("rekognition")
+ssm = boto3.client("ssm")
 
-
-default_model_arn = os.environ.get("REKOGNITION_MODEL_ARN")
+default_model_arn_param = os.environ.get("REKOGNITION_MODEL_ARN_PARAM")
 min_inference_units = int(os.environ.get("REKOGNITION_MIN_INFERENCE_UNITS", 1))
 
 LABEL_CLASSES = ("bad", "good")  # Other labels outside this set will be ignored
@@ -53,11 +53,16 @@ def handler(event, context):
 
     if "RekognitionModelArn" in event:
         model_arn = event["RekognitionModelArn"]
-    elif default_model_arn is not None:
-        model_arn = default_model_arn
+    elif default_model_arn_param is not None:
+        model_arn = ssm.get_parameter(Name=default_model_arn_param)["Parameter"]["Value"]
+        if (not model_arn) or model_arn.lower() in ("undefined", "null"):
+            raise MalformedRequest(
+                "Neither request RekognitionModelArn nor expected SSM parameter are set. Got: "
+                f"{default_model_arn_param} = '{model_arn}'"
+            )
     else:
         raise MalformedRequest(
-            "Neither request RekognitionModelArn nor env var REKOGNITION_MODEL_ARN specified"
+            "Neither request RekognitionModelArn nor env var REKOGNITION_MODEL_ARN_PARAM specified"
         )
 
     # TODO: logging output instead of prints
