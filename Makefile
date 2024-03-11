@@ -62,7 +62,7 @@ export.parameter:
 
 _install_os_packages:
 	$(info [*] Installing jq...)
-	yum install jq -y
+	sudo yum install jq -y
 	$(info [*] Checking currently installed Python version...)
 	python3 --version
 	# This didn't work and installed version looks like 3.7 - let's just change our Lambdas to use 3.7 runtime:
